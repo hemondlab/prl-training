@@ -1,0 +1,2220 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>PRL Training</title>
+<style>
+    body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; display: flex; height: 100vh; background: #ffffff; color: #333; overflow: hidden; }
+    
+    /* Sidebar */
+    .nav-panel { width: 280px; background: #f8f9fa; border-right: 1px solid #dee2e6; display: flex; flex-direction: column; }
+    .nav-header { padding: 15px; background: #e9ecef; font-weight: bold; border-bottom: 1px solid #dee2e6; color: #495057; }
+    .prl-list { flex: 1; overflow-y: auto; }
+    .prl-item { padding: 12px 20px; cursor: pointer; border-bottom: 1px solid #eee; transition: 0.2s; color: #495057; }
+    .prl-item:hover { background: #f1f3f5; }
+    .prl-item.active { background: #e7f5ff; border-right: 4px solid #228be6; color: #1864ab; }
+    .prl-item.has-feedback { border-left: 5px solid #40c057; }
+
+    /* Image Display Area */
+    .image-panel { position: relative; flex: 1; display: flex; flex-direction: column; align-items: center; overflow-y: hidden; padding: 20px 40px; position: relative; background: #ffffff; }
+    
+    /* Imaging modality labels */
+    .label-container { 
+        position: absolute; 
+        left: -140px;
+        top: 0;
+        height: 100%; 
+        display: flex; 
+        flex-direction: column; 
+        width: 130px;
+        pointer-events: none; 
+        z-index: 10;
+    }
+
+    .row-label { 
+        height: 33.333%;
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        font-size: 11px;
+        font-weight: bold;
+        color: #868e96;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        background: none;
+        border: none;
+        padding-right: 15px;
+    }
+    .image-container { position: relative; width: fit-content; margin-top: 10px; border: 1px solid #ced4da; box-shadow: 0 10px 30px rgba(0,0,0,0.1); display: flex;}
+    
+    /* Image Size */
+    #montageImage { display: block; width: 350px; height: auto; image-rendering: auto; }
+
+    #overlayImage {
+        position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+        pointer-events: none; opacity: 0.6; display: none;
+        background-image: var(--overlay-url);
+        background-size: 100% 33.333%; 
+        background-repeat: repeat-y;
+    }
+    #overlayImage.visible { display: block; }
+
+    .info-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 18px;
+        height: 18px;
+        background: #e9ecef;
+        color: #228be6;
+        border-radius: 50%;
+        font-size: 12px;
+        font-weight: bold;
+        cursor: pointer;
+        margin-left: 8px;
+        border: 1px solid #d0ebff;
+        vertical-align: middle;
+    }
+    .info-btn:hover { background: #d0ebff; }
+
+    .flag-desc {
+        display: none;
+        font-size: 12px;
+        color: #666;
+        background: #fff;
+        border-left: 3px solid #228be6;
+        padding: 5px 10px;
+        margin: 5px 0 10px 25px;
+    }
+
+    /* Feedback Panel */
+    .feedback-panel { width: 340px; background: #f8f9fa; border-left: 1px solid #dee2e6; padding: 25px; display: flex; flex-direction: column; }
+    .feedback-btn { width: 100%; padding: 18px; margin: 10px 0; border: none; cursor: pointer; border-radius: 6px; font-weight: bold; font-size: 1.1em; transition: all 0.1s; }
+    .btn-yes { background: #40c057; color: white; }
+    .btn-yes:hover { background: #37b24d; }
+    .btn-no { background: #fa5252; color: white; }
+    .btn-no:hover { background: #f03e3e; }
+    
+    .status-msg { margin-top: 15px; padding: 15px; border-radius: 6px; display: none; text-align: center; font-size: 15px; border: 1px solid transparent; }
+
+    .red-flag-box { margin-top: 30px; border-top: 2px solid #e9ecef; padding-top: 20px; }
+    .flag-option { display: block; margin: 15px 0; cursor: pointer; font-size: 15px; color: #495057; }
+    input[type="checkbox"] { margin-right: 12px; transform: scale(1.3); vertical-align: middle; }
+
+    .controls-legend {
+        position: absolute;
+        bottom: 20px;
+        left: 20px;
+        background: rgba(248, 249, 250, 0.8);
+        border: 1px solid #dee2e6;
+        padding: 10px 15px;
+        border-radius: 8px;
+        font-size: 12px;
+        color: #495057;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+        pointer-events: none;
+        z-index: 100;
+    }
+
+    .key-cap {
+        display: inline-block;
+        padding: 2px 6px;
+        background: #fff;
+        border: 1px solid #adb5bd;
+        border-radius: 4px;
+        font-family: monospace;
+        font-weight: bold;
+        color: #212529;
+        margin: 0 2px;
+    }
+
+    #sliceCounter { margin-top: 20px; font-weight: bold; color: #868e96; background: #f1f3f5; padding: 5px 15px; border-radius: 20px; }
+</style>
+</head>
+<body>
+    <div class="nav-panel">
+        <div class="nav-header">PRL Navigation</div>
+        <div class="prl-list" id="prlList">
+        <div class="prl-item" id="item-1" onclick="loadPRL('1')">
+            Candidate 1
+            <div id="side-status-1" style="font-size: 11px; color: #adb5bd;">Awaiting review</div>
+        </div>
+        <div class="prl-item" id="item-2" onclick="loadPRL('2')">
+            Candidate 2
+            <div id="side-status-2" style="font-size: 11px; color: #adb5bd;">Awaiting review</div>
+        </div>
+        <div class="prl-item" id="item-3" onclick="loadPRL('3')">
+            Candidate 3
+            <div id="side-status-3" style="font-size: 11px; color: #adb5bd;">Awaiting review</div>
+        </div>
+        <div class="prl-item" id="item-4" onclick="loadPRL('4')">
+            Candidate 4
+            <div id="side-status-4" style="font-size: 11px; color: #adb5bd;">Awaiting review</div>
+        </div>
+        <div class="prl-item" id="item-5" onclick="loadPRL('5')">
+            Candidate 5
+            <div id="side-status-5" style="font-size: 11px; color: #adb5bd;">Awaiting review</div>
+        </div>
+        <div class="prl-item" id="item-6" onclick="loadPRL('6')">
+            Candidate 6
+            <div id="side-status-6" style="font-size: 11px; color: #adb5bd;">Awaiting review</div>
+        </div>
+        <div class="prl-item" id="item-7" onclick="loadPRL('7')">
+            Candidate 7
+            <div id="side-status-7" style="font-size: 11px; color: #adb5bd;">Awaiting review</div>
+        </div>
+        <div class="prl-item" id="item-8" onclick="loadPRL('8')">
+            Candidate 8
+            <div id="side-status-8" style="font-size: 11px; color: #adb5bd;">Awaiting review</div>
+        </div>
+        <div class="prl-item" id="item-9" onclick="loadPRL('9')">
+            Candidate 9
+            <div id="side-status-9" style="font-size: 11px; color: #adb5bd;">Awaiting review</div>
+        </div>
+        <div class="prl-item" id="item-10" onclick="loadPRL('10')">
+            Candidate 10
+            <div id="side-status-10" style="font-size: 11px; color: #adb5bd;">Awaiting review</div>
+        </div>
+        <div class="prl-item" id="item-11" onclick="loadPRL('11')">
+            Candidate 11
+            <div id="side-status-11" style="font-size: 11px; color: #adb5bd;">Awaiting review</div>
+        </div>
+        <div class="prl-item" id="item-12" onclick="loadPRL('12')">
+            Candidate 12
+            <div id="side-status-12" style="font-size: 11px; color: #adb5bd;">Awaiting review</div>
+        </div>
+        <div class="prl-item" id="item-13" onclick="loadPRL('13')">
+            Candidate 13
+            <div id="side-status-13" style="font-size: 11px; color: #adb5bd;">Awaiting review</div>
+        </div>
+        <div class="prl-item" id="item-14" onclick="loadPRL('14')">
+            Candidate 14
+            <div id="side-status-14" style="font-size: 11px; color: #adb5bd;">Awaiting review</div>
+        </div>
+        <div class="prl-item" id="item-15" onclick="loadPRL('15')">
+            Candidate 15
+            <div id="side-status-15" style="font-size: 11px; color: #adb5bd;">Awaiting review</div>
+        </div>
+        <div class="prl-item" id="item-16" onclick="loadPRL('16')">
+            Candidate 16
+            <div id="side-status-16" style="font-size: 11px; color: #adb5bd;">Awaiting review</div>
+        </div>
+        <div class="prl-item" id="item-17" onclick="loadPRL('17')">
+            Candidate 17
+            <div id="side-status-17" style="font-size: 11px; color: #adb5bd;">Awaiting review</div>
+        </div>
+        <div class="prl-item" id="item-18" onclick="loadPRL('18')">
+            Candidate 18
+            <div id="side-status-18" style="font-size: 11px; color: #adb5bd;">Awaiting review</div>
+        </div>
+        <div class="prl-item" id="item-19" onclick="loadPRL('19')">
+            Candidate 19
+            <div id="side-status-19" style="font-size: 11px; color: #adb5bd;">Awaiting review</div>
+        </div>
+        <div class="prl-item" id="item-20" onclick="loadPRL('20')">
+            Candidate 20
+            <div id="side-status-20" style="font-size: 11px; color: #adb5bd;">Awaiting review</div>
+        </div>
+        <div class="prl-item" id="item-21" onclick="loadPRL('21')">
+            Candidate 21
+            <div id="side-status-21" style="font-size: 11px; color: #adb5bd;">Awaiting review</div>
+        </div>
+        <div class="prl-item" id="item-22" onclick="loadPRL('22')">
+            Candidate 22
+            <div id="side-status-22" style="font-size: 11px; color: #adb5bd;">Awaiting review</div>
+        </div>
+        <div class="prl-item" id="item-23" onclick="loadPRL('23')">
+            Candidate 23
+            <div id="side-status-23" style="font-size: 11px; color: #adb5bd;">Awaiting review</div>
+        </div>
+        <div class="prl-item" id="item-24" onclick="loadPRL('24')">
+            Candidate 24
+            <div id="side-status-24" style="font-size: 11px; color: #adb5bd;">Awaiting review</div>
+        </div>
+        <div class="prl-item" id="item-25" onclick="loadPRL('25')">
+            Candidate 25
+            <div id="side-status-25" style="font-size: 11px; color: #adb5bd;">Awaiting review</div>
+        </div>
+        <div class="prl-item" id="item-26" onclick="loadPRL('26')">
+            Candidate 26
+            <div id="side-status-26" style="font-size: 11px; color: #adb5bd;">Awaiting review</div>
+        </div>
+        <div class="prl-item" id="item-27" onclick="loadPRL('27')">
+            Candidate 27
+            <div id="side-status-27" style="font-size: 11px; color: #adb5bd;">Awaiting review</div>
+        </div>
+        <div class="prl-item" id="item-28" onclick="loadPRL('28')">
+            Candidate 28
+            <div id="side-status-28" style="font-size: 11px; color: #adb5bd;">Awaiting review</div>
+        </div>
+        <div class="prl-item" id="item-29" onclick="loadPRL('29')">
+            Candidate 29
+            <div id="side-status-29" style="font-size: 11px; color: #adb5bd;">Awaiting review</div>
+        </div>
+        <div class="prl-item" id="item-30" onclick="loadPRL('30')">
+            Candidate 30
+            <div id="side-status-30" style="font-size: 11px; color: #adb5bd;">Awaiting review</div>
+        </div>
+        <div class="prl-item" id="item-31" onclick="loadPRL('31')">
+            Candidate 31
+            <div id="side-status-31" style="font-size: 11px; color: #adb5bd;">Awaiting review</div>
+        </div>
+        <div class="prl-item" id="item-32" onclick="loadPRL('32')">
+            Candidate 32
+            <div id="side-status-32" style="font-size: 11px; color: #adb5bd;">Awaiting review</div>
+        </div>
+        <div class="prl-item" id="item-33" onclick="loadPRL('33')">
+            Candidate 33
+            <div id="side-status-33" style="font-size: 11px; color: #adb5bd;">Awaiting review</div>
+        </div>
+        <div class="prl-item" id="item-34" onclick="loadPRL('34')">
+            Candidate 34
+            <div id="side-status-34" style="font-size: 11px; color: #adb5bd;">Awaiting review</div>
+        </div>
+        <div class="prl-item" id="item-35" onclick="loadPRL('35')">
+            Candidate 35
+            <div id="side-status-35" style="font-size: 11px; color: #adb5bd;">Awaiting review</div>
+        </div>
+        <div class="prl-item" id="item-36" onclick="loadPRL('36')">
+            Candidate 36
+            <div id="side-status-36" style="font-size: 11px; color: #adb5bd;">Awaiting review</div>
+        </div>
+        <div class="prl-item" id="item-37" onclick="loadPRL('37')">
+            Candidate 37
+            <div id="side-status-37" style="font-size: 11px; color: #adb5bd;">Awaiting review</div>
+        </div>
+        <div class="prl-item" id="item-38" onclick="loadPRL('38')">
+            Candidate 38
+            <div id="side-status-38" style="font-size: 11px; color: #adb5bd;">Awaiting review</div>
+        </div>
+        <div class="prl-item" id="item-39" onclick="loadPRL('39')">
+            Candidate 39
+            <div id="side-status-39" style="font-size: 11px; color: #adb5bd;">Awaiting review</div>
+        </div>
+        <div class="prl-item" id="item-40" onclick="loadPRL('40')">
+            Candidate 40
+            <div id="side-status-40" style="font-size: 11px; color: #adb5bd;">Awaiting review</div>
+        </div>
+        <div class="prl-item" id="item-41" onclick="loadPRL('41')">
+            Candidate 41
+            <div id="side-status-41" style="font-size: 11px; color: #adb5bd;">Awaiting review</div>
+        </div>
+        <div class="prl-item" id="item-42" onclick="loadPRL('42')">
+            Candidate 42
+            <div id="side-status-42" style="font-size: 11px; color: #adb5bd;">Awaiting review</div>
+        </div>
+        <div class="prl-item" id="item-43" onclick="loadPRL('43')">
+            Candidate 43
+            <div id="side-status-43" style="font-size: 11px; color: #adb5bd;">Awaiting review</div>
+        </div>
+        <div class="prl-item" id="item-44" onclick="loadPRL('44')">
+            Candidate 44
+            <div id="side-status-44" style="font-size: 11px; color: #adb5bd;">Awaiting review</div>
+        </div>
+        <div class="prl-item" id="item-45" onclick="loadPRL('45')">
+            Candidate 45
+            <div id="side-status-45" style="font-size: 11px; color: #adb5bd;">Awaiting review</div>
+        </div>
+        <div class="prl-item" id="item-46" onclick="loadPRL('46')">
+            Candidate 46
+            <div id="side-status-46" style="font-size: 11px; color: #adb5bd;">Awaiting review</div>
+        </div>
+        <div class="prl-item" id="item-47" onclick="loadPRL('47')">
+            Candidate 47
+            <div id="side-status-47" style="font-size: 11px; color: #adb5bd;">Awaiting review</div>
+        </div>
+        <div class="prl-item" id="item-48" onclick="loadPRL('48')">
+            Candidate 48
+            <div id="side-status-48" style="font-size: 11px; color: #adb5bd;">Awaiting review</div>
+        </div>
+        <div class="prl-item" id="item-49" onclick="loadPRL('49')">
+            Candidate 49
+            <div id="side-status-49" style="font-size: 11px; color: #adb5bd;">Awaiting review</div>
+        </div>
+        <div class="prl-item" id="item-50" onclick="loadPRL('50')">
+            Candidate 50
+            <div id="side-status-50" style="font-size: 11px; color: #adb5bd;">Awaiting review</div>
+        </div>
+        <div class="prl-item" id="item-51" onclick="loadPRL('51')">
+            Candidate 51
+            <div id="side-status-51" style="font-size: 11px; color: #adb5bd;">Awaiting review</div>
+        </div>
+        <div class="prl-item" id="item-52" onclick="loadPRL('52')">
+            Candidate 52
+            <div id="side-status-52" style="font-size: 11px; color: #adb5bd;">Awaiting review</div>
+        </div>
+        <div class="prl-item" id="item-53" onclick="loadPRL('53')">
+            Candidate 53
+            <div id="side-status-53" style="font-size: 11px; color: #adb5bd;">Awaiting review</div>
+        </div>
+        <div class="prl-item" id="item-54" onclick="loadPRL('54')">
+            Candidate 54
+            <div id="side-status-54" style="font-size: 11px; color: #adb5bd;">Awaiting review</div>
+        </div>
+        <div class="prl-item" id="item-55" onclick="loadPRL('55')">
+            Candidate 55
+            <div id="side-status-55" style="font-size: 11px; color: #adb5bd;">Awaiting review</div>
+        </div>
+        <div class="prl-item" id="item-56" onclick="loadPRL('56')">
+            Candidate 56
+            <div id="side-status-56" style="font-size: 11px; color: #adb5bd;">Awaiting review</div>
+        </div>
+        <div class="prl-item" id="item-57" onclick="loadPRL('57')">
+            Candidate 57
+            <div id="side-status-57" style="font-size: 11px; color: #adb5bd;">Awaiting review</div>
+        </div>
+        <div class="prl-item" id="item-58" onclick="loadPRL('58')">
+            Candidate 58
+            <div id="side-status-58" style="font-size: 11px; color: #adb5bd;">Awaiting review</div>
+        </div>
+        <div class="prl-item" id="item-59" onclick="loadPRL('59')">
+            Candidate 59
+            <div id="side-status-59" style="font-size: 11px; color: #adb5bd;">Awaiting review</div>
+        </div>
+        <div class="prl-item" id="item-60" onclick="loadPRL('60')">
+            Candidate 60
+            <div id="side-status-60" style="font-size: 11px; color: #adb5bd;">Awaiting review</div>
+        </div>
+        <div class="prl-item" id="item-61" onclick="loadPRL('61')">
+            Candidate 61
+            <div id="side-status-61" style="font-size: 11px; color: #adb5bd;">Awaiting review</div>
+        </div>
+        <div class="prl-item" id="item-62" onclick="loadPRL('62')">
+            Candidate 62
+            <div id="side-status-62" style="font-size: 11px; color: #adb5bd;">Awaiting review</div>
+        </div>
+        <div class="prl-item" id="item-63" onclick="loadPRL('63')">
+            Candidate 63
+            <div id="side-status-63" style="font-size: 11px; color: #adb5bd;">Awaiting review</div>
+        </div>
+        <div class="prl-item" id="item-64" onclick="loadPRL('64')">
+            Candidate 64
+            <div id="side-status-64" style="font-size: 11px; color: #adb5bd;">Awaiting review</div>
+        </div>
+        <div class="prl-item" id="item-65" onclick="loadPRL('65')">
+            Candidate 65
+            <div id="side-status-65" style="font-size: 11px; color: #adb5bd;">Awaiting review</div>
+        </div>
+        <div class="prl-item" id="item-66" onclick="loadPRL('66')">
+            Candidate 66
+            <div id="side-status-66" style="font-size: 11px; color: #adb5bd;">Awaiting review</div>
+        </div>
+        <div class="prl-item" id="item-67" onclick="loadPRL('67')">
+            Candidate 67
+            <div id="side-status-67" style="font-size: 11px; color: #adb5bd;">Awaiting review</div>
+        </div>
+        <div class="prl-item" id="item-68" onclick="loadPRL('68')">
+            Candidate 68
+            <div id="side-status-68" style="font-size: 11px; color: #adb5bd;">Awaiting review</div>
+        </div>
+        <div class="prl-item" id="item-69" onclick="loadPRL('69')">
+            Candidate 69
+            <div id="side-status-69" style="font-size: 11px; color: #adb5bd;">Awaiting review</div>
+        </div>
+        <div class="prl-item" id="item-70" onclick="loadPRL('70')">
+            Candidate 70
+            <div id="side-status-70" style="font-size: 11px; color: #adb5bd;">Awaiting review</div>
+        </div>
+        <div class="prl-item" id="item-71" onclick="loadPRL('71')">
+            Candidate 71
+            <div id="side-status-71" style="font-size: 11px; color: #adb5bd;">Awaiting review</div>
+        </div>
+        <div class="prl-item" id="item-72" onclick="loadPRL('72')">
+            Candidate 72
+            <div id="side-status-72" style="font-size: 11px; color: #adb5bd;">Awaiting review</div>
+        </div>
+        <div class="prl-item" id="item-73" onclick="loadPRL('73')">
+            Candidate 73
+            <div id="side-status-73" style="font-size: 11px; color: #adb5bd;">Awaiting review</div>
+        </div>
+        <div class="prl-item" id="item-74" onclick="loadPRL('74')">
+            Candidate 74
+            <div id="side-status-74" style="font-size: 11px; color: #adb5bd;">Awaiting review</div>
+        </div>
+        <div class="prl-item" id="item-75" onclick="loadPRL('75')">
+            Candidate 75
+            <div id="side-status-75" style="font-size: 11px; color: #adb5bd;">Awaiting review</div>
+        </div>
+        <div class="prl-item" id="item-76" onclick="loadPRL('76')">
+            Candidate 76
+            <div id="side-status-76" style="font-size: 11px; color: #adb5bd;">Awaiting review</div>
+        </div>
+        <div class="prl-item" id="item-77" onclick="loadPRL('77')">
+            Candidate 77
+            <div id="side-status-77" style="font-size: 11px; color: #adb5bd;">Awaiting review</div>
+        </div>
+        <div class="prl-item" id="item-78" onclick="loadPRL('78')">
+            Candidate 78
+            <div id="side-status-78" style="font-size: 11px; color: #adb5bd;">Awaiting review</div>
+        </div>
+        <div class="prl-item" id="item-79" onclick="loadPRL('79')">
+            Candidate 79
+            <div id="side-status-79" style="font-size: 11px; color: #adb5bd;">Awaiting review</div>
+        </div>
+        <div class="prl-item" id="item-80" onclick="loadPRL('80')">
+            Candidate 80
+            <div id="side-status-80" style="font-size: 11px; color: #adb5bd;">Awaiting review</div>
+        </div>
+        <div class="prl-item" id="item-81" onclick="loadPRL('81')">
+            Candidate 81
+            <div id="side-status-81" style="font-size: 11px; color: #adb5bd;">Awaiting review</div>
+        </div>
+        <div class="prl-item" id="item-82" onclick="loadPRL('82')">
+            Candidate 82
+            <div id="side-status-82" style="font-size: 11px; color: #adb5bd;">Awaiting review</div>
+        </div>
+        <div class="prl-item" id="item-83" onclick="loadPRL('83')">
+            Candidate 83
+            <div id="side-status-83" style="font-size: 11px; color: #adb5bd;">Awaiting review</div>
+        </div>
+        <div class="prl-item" id="item-84" onclick="loadPRL('84')">
+            Candidate 84
+            <div id="side-status-84" style="font-size: 11px; color: #adb5bd;">Awaiting review</div>
+        </div>
+        <div class="prl-item" id="item-85" onclick="loadPRL('85')">
+            Candidate 85
+            <div id="side-status-85" style="font-size: 11px; color: #adb5bd;">Awaiting review</div>
+        </div>
+        <div class="prl-item" id="item-86" onclick="loadPRL('86')">
+            Candidate 86
+            <div id="side-status-86" style="font-size: 11px; color: #adb5bd;">Awaiting review</div>
+        </div>
+        <div class="prl-item" id="item-87" onclick="loadPRL('87')">
+            Candidate 87
+            <div id="side-status-87" style="font-size: 11px; color: #adb5bd;">Awaiting review</div>
+        </div>
+        <div class="prl-item" id="item-88" onclick="loadPRL('88')">
+            Candidate 88
+            <div id="side-status-88" style="font-size: 11px; color: #adb5bd;">Awaiting review</div>
+        </div>
+        <div class="prl-item" id="item-89" onclick="loadPRL('89')">
+            Candidate 89
+            <div id="side-status-89" style="font-size: 11px; color: #adb5bd;">Awaiting review</div>
+        </div>
+        <div class="prl-item" id="item-90" onclick="loadPRL('90')">
+            Candidate 90
+            <div id="side-status-90" style="font-size: 11px; color: #adb5bd;">Awaiting review</div>
+        </div>
+        <div class="prl-item" id="item-91" onclick="loadPRL('91')">
+            Candidate 91
+            <div id="side-status-91" style="font-size: 11px; color: #adb5bd;">Awaiting review</div>
+        </div>
+        </div>
+    </div>
+
+    <div class="image-panel">
+        <div style="text-align: center; margin-bottom: 20px; border-bottom: 1px solid #f1f3f5; width: 100%; padding-bottom: 15px;">
+            <h1 style="margin: 0; color: #212529; font-size: 24px; letter-spacing: -0.5px;">
+                Welcome to PRL Training
+            </h1>
+            <div style="font-size: 13px; color: #adb5bd; margin-top: 5px; text-transform: uppercase; letter-spacing: 1px;">
+                A work-in-progress with expert consensus feedback
+            </div>
+        </div>
+        <div class="label-container">
+            <div class="row-label">Filtered Phase</div>
+            <div class="row-label">T2-FLAIR</div>
+            <div class="row-label">T1-weighted (GRE)</div>
+        </div>
+        <div class="image-container">
+            <div class="label-container">
+                <div class="row-label">Filtered Phase</div>
+                <div class="row-label">FLAIR</div>
+                <div class="row-label">T1-Weighted</div>
+            </div>
+            <img id="montageImage" src="">
+            <div id="overlayImage"></div>
+        </div>
+        <div id="sliceCounter">Slice: 0/0</div>
+        <div class="controls-legend">
+            <div style="margin-bottom: 5px;"><strong>Quick Controls:</strong></div>
+            <div><span class="key-cap">Enter</span> Toggle Lesion Mask</div>
+            <div><span class="key-cap">Mouse Scroll</span> Navigate Slices</div>
+            <div><span class="key-cap">1</span> / <span class="key-cap">2</span> Verdict Yes / No</div>
+        </div>
+    </div>
+
+    <div class="feedback-panel">
+        <h3 style="color: #343a40;">PRL assessment</h3>
+        <button class="feedback-btn btn-yes" onclick="submitVerdict('Yes')">PRL YES (1)</button>
+        <button class="feedback-btn btn-no" onclick="submitVerdict('No')">PRL NO (2)</button>
+        
+        <div id="feedbackResponse" class="status-msg"></div>
+
+        <div class="red-flag-box">
+            <h4 style="color: #495057;">Red Flags</h4>
+            <label class="flag-option">
+                <input type="checkbox" class="rf" value="Vascular"> Vascular Complexity
+                <span class="info-btn" onclick="toggleInfo(event, 'info-vascular')">i</span>
+            </label>
+            <div id="info-vascular" class="flag-desc">Veins running alongside the rim are difficult to distinguish from a PRL rim</div>
+
+            <label class="flag-option">
+                <input type="checkbox" class="rf" value="Edge-misalignment"> Edge misalignment
+                <span class="info-btn" onclick="toggleInfo(event, 'info-edge')">i</span>
+            </label>
+            <div id="info-edge" class="flag-desc">The hypointense rim should be spatially aligned with either the T2-FLAIR or T1-hypointense lesion edge.</div>
+
+            <label class="flag-option">
+                <input type="checkbox" class="rf" value="Confluent"> Confluent complex
+                <span class="info-btn" onclick="toggleInfo(event, 'info-confluent')">i</span>
+            </label>
+            <div id="info-confluent" class="flag-desc">PRL criteria are not designed for lesions that are part of a large confluent lesion complex. Occasionally an embededded T1 hypointensity can be convincingly correlated with hypointense phase edges.</div>
+
+            <label class="flag-option">
+                <input type="checkbox" class="rf" value="Incomplete-rim"> Incomplete Rim
+                <span class="info-btn" onclick="toggleInfo(event, 'info-incomplete')">i</span>
+            </label>
+            <div id="info-incomplete" class="flag-desc">Hypointense rims should be visible for at least 2/3 of the lesion circumference, excluding cortical or ependymal/ventricular borders</div>
+
+            <label class="flag-option">
+                <input type="checkbox" class="rf" value="Single-slice"> Limited multi-slice visibility
+                <span class="info-btn" onclick="toggleInfo(event, 'info-single')">i</span>
+            </label>
+            <div id="info-single" class="flag-desc">PRL rims should be visible on at least 2 adjacent slices. If the rim is only visible on a single slice, it is very unlikely to represent a PRL.</div>
+
+            <h4 style="color: #495057; margin-top: 25px;">Yellow Flags</h4>
+
+            <label class="flag-option">
+                <input type="checkbox" class="rf" value="Heterogeneity"> Heterogeneity
+                <span class="info-btn" onclick="toggleInfo(event, 'info-heterogeneity')">i</span>
+            </label>
+            <div id="info-heterogeneity" class="flag-desc">Small paramagnetic/diamagnetic structures, e.g. iron-laden ferritin or hemosiderin dots, veins and myelin debris.</div>
+
+            <label class="flag-option">
+                <input type="checkbox" class="rf" value="Small"> Small
+                <span class="info-btn" onclick="toggleInfo(event, 'info-small')">i</span>
+            </label>
+            <div id="info-small" class="flag-desc">Small lesions (<3mm in diameter) are difficult to evaluate depending on the scan resolution</div>
+
+            <label class="flag-option">
+                <input type="checkbox" class="rf" value="Other"> Challenges in reaching agreement
+                <span class="info-btn" onclick="toggleInfo(event, 'info-other')">i</span>
+            </label>
+            <div id="info-other" class="flag-desc">If consensus is difficult to reach with multi-rater input, it is felt that the lesion is unlikely to represent a true PRL. For single raters, the equivalent subjective experience is a lesion that is simply taking "too long" to evaluate.</div>
+
+            <label class="flag-option">
+                <input type="checkbox" class="rf" value="Faint"> Faint signal
+                <span class="info-btn" onclick="toggleInfo(event, 'info-faint')">i</span>
+            </label>
+            <div id="info-faint" class="flag-desc">Lesion rim has faded to the point of being difficult to distinguish from background noise. This is not part of the formal Brain 2024 criteria but is a common reason for disagreement between raters.</div>
+
+            <label class="flag-option">
+                <input type="checkbox" class="rf" value="Artifact"> Artifact
+                <span class="info-btn" onclick="toggleInfo(event, 'info-artifact')">i</span>
+            </label>
+            <div id="info-artifact" class="flag-desc">Artifacts can mimic or obscure PRL rims, and commonly include motion (blurring), magnetic dipole artifacts, and susceptibility artifacts from air/bone-tissue interfaces.</div>
+
+            <label class="flag-option">
+                <input type="checkbox" class="rf" value="Thick-rim"> Rim thickness >2 mm
+                <span class="info-btn" onclick="toggleInfo(event, 'info-thick')">i</span>
+            </label>
+            <div id="info-thick" class="flag-desc">PRL rims are typically thin and should not exceed 2 mm in thickness. Thicker rims may indicate a different pathological process or artifact.</div>
+        </div>
+        <div style="font-size: 12px; color: #adb5bd; text-align: center; margin-top: 15px; font-style: italic;">
+            Grading criteria based on from Bagnato et al., Brain 2024
+        </div>
+        <button onclick="exportCSV()" style="margin-top:auto; padding:12px; background: #343a40; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold;">Save and Download Responses (as .CSV)</button>
+        
+        <div style="font-size: 12px; color: #adb5bd; text-align: center; margin-top: 15px; font-style: italic;">
+            These cases are for education purposes only and do not represent the full spectrum of PRL presentations or variations related to scan protocols.<br><br>
+            This project is enabled by funding from the National Institute Of Neurological Disorders And Stroke of the National Institutes of Health under Award Number K23NS126718. The content is solely the responsibility of the authors (CH) and does not necessarily represent the official views of the National Institutes of Health.<br><br>
+            Susceptibility imaging protocol: Philips 3T (software version 5.4.1) "SWIp" protocol, a 3D multi-echo GRE with 6 echoes at TE 9.8-51ms, TR=51ms, 0.6 x 0.6 x 2.0mm voxel acquisition; SENSE factor= 2.5 and 1.29; bandwidth = 217Hz scan time = 353 seconds. Manufacturer-specific post-processing includes phase unwrapping, high-pass filtering and echo combination averaging.
+        </div>
+    </div>
+
+<script>
+const prlData = {
+  '1': {
+    'name': '0001',
+    'images': [
+      { 'base': 'sub-anon/0001/montage0000.png', 'mask': 'sub-anon/0001/lesion0000.png' },
+      { 'base': 'sub-anon/0001/montage0001.png', 'mask': 'sub-anon/0001/lesion0001.png' },
+      { 'base': 'sub-anon/0001/montage0002.png', 'mask': 'sub-anon/0001/lesion0002.png' },
+      { 'base': 'sub-anon/0001/montage0003.png', 'mask': 'sub-anon/0001/lesion0003.png' },
+      { 'base': 'sub-anon/0001/montage0004.png', 'mask': 'sub-anon/0001/lesion0004.png' },
+      { 'base': 'sub-anon/0001/montage0005.png', 'mask': 'sub-anon/0001/lesion0005.png' },
+      { 'base': 'sub-anon/0001/montage0006.png', 'mask': 'sub-anon/0001/lesion0006.png' },
+      { 'base': 'sub-anon/0001/montage0007.png', 'mask': 'sub-anon/0001/lesion0007.png' },
+      { 'base': 'sub-anon/0001/montage0008.png', 'mask': 'sub-anon/0001/lesion0008.png' },
+      { 'base': 'sub-anon/0001/montage0009.png', 'mask': 'sub-anon/0001/lesion0009.png' },
+      { 'base': 'sub-anon/0001/montage0010.png', 'mask': 'sub-anon/0001/lesion0010.png' },
+      { 'base': 'sub-anon/0001/montage0011.png', 'mask': 'sub-anon/0001/lesion0011.png' },
+      { 'base': 'sub-anon/0001/montage0012.png', 'mask': 'sub-anon/0001/lesion0012.png' },
+      { 'base': 'sub-anon/0001/montage0013.png', 'mask': 'sub-anon/0001/lesion0013.png' },
+      { 'base': 'sub-anon/0001/montage0014.png', 'mask': 'sub-anon/0001/lesion0014.png' },
+      { 'base': 'sub-anon/0001/montage0015.png', 'mask': 'sub-anon/0001/lesion0015.png' },
+      { 'base': 'sub-anon/0001/montage0016.png', 'mask': 'sub-anon/0001/lesion0016.png' },
+      { 'base': 'sub-anon/0001/montage0017.png', 'mask': 'sub-anon/0001/lesion0017.png' },
+      { 'base': 'sub-anon/0001/montage0018.png', 'mask': 'sub-anon/0001/lesion0018.png' },
+    ]},
+  '2': {
+    'name': '0002',
+    'images': [
+      { 'base': 'sub-anon/0002/montage0000.png', 'mask': 'sub-anon/0002/lesion0000.png' },
+      { 'base': 'sub-anon/0002/montage0001.png', 'mask': 'sub-anon/0002/lesion0001.png' },
+      { 'base': 'sub-anon/0002/montage0002.png', 'mask': 'sub-anon/0002/lesion0002.png' },
+      { 'base': 'sub-anon/0002/montage0003.png', 'mask': 'sub-anon/0002/lesion0003.png' },
+      { 'base': 'sub-anon/0002/montage0004.png', 'mask': 'sub-anon/0002/lesion0004.png' },
+      { 'base': 'sub-anon/0002/montage0005.png', 'mask': 'sub-anon/0002/lesion0005.png' },
+      { 'base': 'sub-anon/0002/montage0006.png', 'mask': 'sub-anon/0002/lesion0006.png' },
+      { 'base': 'sub-anon/0002/montage0007.png', 'mask': 'sub-anon/0002/lesion0007.png' },
+      { 'base': 'sub-anon/0002/montage0008.png', 'mask': 'sub-anon/0002/lesion0008.png' },
+      { 'base': 'sub-anon/0002/montage0009.png', 'mask': 'sub-anon/0002/lesion0009.png' },
+      { 'base': 'sub-anon/0002/montage0010.png', 'mask': 'sub-anon/0002/lesion0010.png' },
+      { 'base': 'sub-anon/0002/montage0011.png', 'mask': 'sub-anon/0002/lesion0011.png' },
+      { 'base': 'sub-anon/0002/montage0012.png', 'mask': 'sub-anon/0002/lesion0012.png' },
+      { 'base': 'sub-anon/0002/montage0013.png', 'mask': 'sub-anon/0002/lesion0013.png' },
+      { 'base': 'sub-anon/0002/montage0014.png', 'mask': 'sub-anon/0002/lesion0014.png' },
+      { 'base': 'sub-anon/0002/montage0015.png', 'mask': 'sub-anon/0002/lesion0015.png' },
+      { 'base': 'sub-anon/0002/montage0016.png', 'mask': 'sub-anon/0002/lesion0016.png' },
+      { 'base': 'sub-anon/0002/montage0017.png', 'mask': 'sub-anon/0002/lesion0017.png' },
+      { 'base': 'sub-anon/0002/montage0018.png', 'mask': 'sub-anon/0002/lesion0018.png' },
+    ]},
+  '3': {
+    'name': '0003',
+    'images': [
+      { 'base': 'sub-anon/0003/montage0000.png', 'mask': 'sub-anon/0003/lesion0000.png' },
+      { 'base': 'sub-anon/0003/montage0001.png', 'mask': 'sub-anon/0003/lesion0001.png' },
+      { 'base': 'sub-anon/0003/montage0002.png', 'mask': 'sub-anon/0003/lesion0002.png' },
+      { 'base': 'sub-anon/0003/montage0003.png', 'mask': 'sub-anon/0003/lesion0003.png' },
+      { 'base': 'sub-anon/0003/montage0004.png', 'mask': 'sub-anon/0003/lesion0004.png' },
+      { 'base': 'sub-anon/0003/montage0005.png', 'mask': 'sub-anon/0003/lesion0005.png' },
+      { 'base': 'sub-anon/0003/montage0006.png', 'mask': 'sub-anon/0003/lesion0006.png' },
+      { 'base': 'sub-anon/0003/montage0007.png', 'mask': 'sub-anon/0003/lesion0007.png' },
+      { 'base': 'sub-anon/0003/montage0008.png', 'mask': 'sub-anon/0003/lesion0008.png' },
+      { 'base': 'sub-anon/0003/montage0009.png', 'mask': 'sub-anon/0003/lesion0009.png' },
+      { 'base': 'sub-anon/0003/montage0010.png', 'mask': 'sub-anon/0003/lesion0010.png' },
+    ]},
+  '4': {
+    'name': '0004',
+    'images': [
+      { 'base': 'sub-anon/0004/montage0000.png', 'mask': 'sub-anon/0004/lesion0000.png' },
+      { 'base': 'sub-anon/0004/montage0001.png', 'mask': 'sub-anon/0004/lesion0001.png' },
+      { 'base': 'sub-anon/0004/montage0002.png', 'mask': 'sub-anon/0004/lesion0002.png' },
+      { 'base': 'sub-anon/0004/montage0003.png', 'mask': 'sub-anon/0004/lesion0003.png' },
+      { 'base': 'sub-anon/0004/montage0004.png', 'mask': 'sub-anon/0004/lesion0004.png' },
+      { 'base': 'sub-anon/0004/montage0005.png', 'mask': 'sub-anon/0004/lesion0005.png' },
+      { 'base': 'sub-anon/0004/montage0006.png', 'mask': 'sub-anon/0004/lesion0006.png' },
+      { 'base': 'sub-anon/0004/montage0007.png', 'mask': 'sub-anon/0004/lesion0007.png' },
+      { 'base': 'sub-anon/0004/montage0008.png', 'mask': 'sub-anon/0004/lesion0008.png' },
+      { 'base': 'sub-anon/0004/montage0009.png', 'mask': 'sub-anon/0004/lesion0009.png' },
+      { 'base': 'sub-anon/0004/montage0010.png', 'mask': 'sub-anon/0004/lesion0010.png' },
+    ]},
+  '5': {
+    'name': '0005',
+    'images': [
+      { 'base': 'sub-anon/0005/montage0000.png', 'mask': 'sub-anon/0005/lesion0000.png' },
+      { 'base': 'sub-anon/0005/montage0001.png', 'mask': 'sub-anon/0005/lesion0001.png' },
+      { 'base': 'sub-anon/0005/montage0002.png', 'mask': 'sub-anon/0005/lesion0002.png' },
+      { 'base': 'sub-anon/0005/montage0003.png', 'mask': 'sub-anon/0005/lesion0003.png' },
+      { 'base': 'sub-anon/0005/montage0004.png', 'mask': 'sub-anon/0005/lesion0004.png' },
+      { 'base': 'sub-anon/0005/montage0005.png', 'mask': 'sub-anon/0005/lesion0005.png' },
+      { 'base': 'sub-anon/0005/montage0006.png', 'mask': 'sub-anon/0005/lesion0006.png' },
+      { 'base': 'sub-anon/0005/montage0007.png', 'mask': 'sub-anon/0005/lesion0007.png' },
+      { 'base': 'sub-anon/0005/montage0008.png', 'mask': 'sub-anon/0005/lesion0008.png' },
+      { 'base': 'sub-anon/0005/montage0009.png', 'mask': 'sub-anon/0005/lesion0009.png' },
+      { 'base': 'sub-anon/0005/montage0010.png', 'mask': 'sub-anon/0005/lesion0010.png' },
+      { 'base': 'sub-anon/0005/montage0011.png', 'mask': 'sub-anon/0005/lesion0011.png' },
+      { 'base': 'sub-anon/0005/montage0012.png', 'mask': 'sub-anon/0005/lesion0012.png' },
+      { 'base': 'sub-anon/0005/montage0013.png', 'mask': 'sub-anon/0005/lesion0013.png' },
+      { 'base': 'sub-anon/0005/montage0014.png', 'mask': 'sub-anon/0005/lesion0014.png' },
+    ]},
+  '6': {
+    'name': '0006',
+    'images': [
+      { 'base': 'sub-anon/0006/montage0000.png', 'mask': 'sub-anon/0006/lesion0000.png' },
+      { 'base': 'sub-anon/0006/montage0001.png', 'mask': 'sub-anon/0006/lesion0001.png' },
+      { 'base': 'sub-anon/0006/montage0002.png', 'mask': 'sub-anon/0006/lesion0002.png' },
+      { 'base': 'sub-anon/0006/montage0003.png', 'mask': 'sub-anon/0006/lesion0003.png' },
+      { 'base': 'sub-anon/0006/montage0004.png', 'mask': 'sub-anon/0006/lesion0004.png' },
+      { 'base': 'sub-anon/0006/montage0005.png', 'mask': 'sub-anon/0006/lesion0005.png' },
+      { 'base': 'sub-anon/0006/montage0006.png', 'mask': 'sub-anon/0006/lesion0006.png' },
+      { 'base': 'sub-anon/0006/montage0007.png', 'mask': 'sub-anon/0006/lesion0007.png' },
+      { 'base': 'sub-anon/0006/montage0008.png', 'mask': 'sub-anon/0006/lesion0008.png' },
+      { 'base': 'sub-anon/0006/montage0009.png', 'mask': 'sub-anon/0006/lesion0009.png' },
+      { 'base': 'sub-anon/0006/montage0010.png', 'mask': 'sub-anon/0006/lesion0010.png' },
+      { 'base': 'sub-anon/0006/montage0011.png', 'mask': 'sub-anon/0006/lesion0011.png' },
+      { 'base': 'sub-anon/0006/montage0012.png', 'mask': 'sub-anon/0006/lesion0012.png' },
+    ]},
+  '7': {
+    'name': '0007',
+    'images': [
+      { 'base': 'sub-anon/0007/montage0000.png', 'mask': 'sub-anon/0007/lesion0000.png' },
+      { 'base': 'sub-anon/0007/montage0001.png', 'mask': 'sub-anon/0007/lesion0001.png' },
+      { 'base': 'sub-anon/0007/montage0002.png', 'mask': 'sub-anon/0007/lesion0002.png' },
+      { 'base': 'sub-anon/0007/montage0003.png', 'mask': 'sub-anon/0007/lesion0003.png' },
+      { 'base': 'sub-anon/0007/montage0004.png', 'mask': 'sub-anon/0007/lesion0004.png' },
+      { 'base': 'sub-anon/0007/montage0005.png', 'mask': 'sub-anon/0007/lesion0005.png' },
+      { 'base': 'sub-anon/0007/montage0006.png', 'mask': 'sub-anon/0007/lesion0006.png' },
+      { 'base': 'sub-anon/0007/montage0007.png', 'mask': 'sub-anon/0007/lesion0007.png' },
+      { 'base': 'sub-anon/0007/montage0008.png', 'mask': 'sub-anon/0007/lesion0008.png' },
+      { 'base': 'sub-anon/0007/montage0009.png', 'mask': 'sub-anon/0007/lesion0009.png' },
+    ]},
+  '8': {
+    'name': '0008',
+    'images': [
+      { 'base': 'sub-anon/0008/montage0000.png', 'mask': 'sub-anon/0008/lesion0000.png' },
+      { 'base': 'sub-anon/0008/montage0001.png', 'mask': 'sub-anon/0008/lesion0001.png' },
+      { 'base': 'sub-anon/0008/montage0002.png', 'mask': 'sub-anon/0008/lesion0002.png' },
+      { 'base': 'sub-anon/0008/montage0003.png', 'mask': 'sub-anon/0008/lesion0003.png' },
+      { 'base': 'sub-anon/0008/montage0004.png', 'mask': 'sub-anon/0008/lesion0004.png' },
+      { 'base': 'sub-anon/0008/montage0005.png', 'mask': 'sub-anon/0008/lesion0005.png' },
+      { 'base': 'sub-anon/0008/montage0006.png', 'mask': 'sub-anon/0008/lesion0006.png' },
+      { 'base': 'sub-anon/0008/montage0007.png', 'mask': 'sub-anon/0008/lesion0007.png' },
+      { 'base': 'sub-anon/0008/montage0008.png', 'mask': 'sub-anon/0008/lesion0008.png' },
+      { 'base': 'sub-anon/0008/montage0009.png', 'mask': 'sub-anon/0008/lesion0009.png' },
+      { 'base': 'sub-anon/0008/montage0010.png', 'mask': 'sub-anon/0008/lesion0010.png' },
+    ]},
+  '9': {
+    'name': '0009',
+    'images': [
+      { 'base': 'sub-anon/0009/montage0000.png', 'mask': 'sub-anon/0009/lesion0000.png' },
+      { 'base': 'sub-anon/0009/montage0001.png', 'mask': 'sub-anon/0009/lesion0001.png' },
+      { 'base': 'sub-anon/0009/montage0002.png', 'mask': 'sub-anon/0009/lesion0002.png' },
+      { 'base': 'sub-anon/0009/montage0003.png', 'mask': 'sub-anon/0009/lesion0003.png' },
+      { 'base': 'sub-anon/0009/montage0004.png', 'mask': 'sub-anon/0009/lesion0004.png' },
+      { 'base': 'sub-anon/0009/montage0005.png', 'mask': 'sub-anon/0009/lesion0005.png' },
+      { 'base': 'sub-anon/0009/montage0006.png', 'mask': 'sub-anon/0009/lesion0006.png' },
+      { 'base': 'sub-anon/0009/montage0007.png', 'mask': 'sub-anon/0009/lesion0007.png' },
+      { 'base': 'sub-anon/0009/montage0008.png', 'mask': 'sub-anon/0009/lesion0008.png' },
+      { 'base': 'sub-anon/0009/montage0009.png', 'mask': 'sub-anon/0009/lesion0009.png' },
+    ]},
+  '10': {
+    'name': '0010',
+    'images': [
+      { 'base': 'sub-anon/0010/montage0000.png', 'mask': 'sub-anon/0010/lesion0000.png' },
+      { 'base': 'sub-anon/0010/montage0001.png', 'mask': 'sub-anon/0010/lesion0001.png' },
+      { 'base': 'sub-anon/0010/montage0002.png', 'mask': 'sub-anon/0010/lesion0002.png' },
+      { 'base': 'sub-anon/0010/montage0003.png', 'mask': 'sub-anon/0010/lesion0003.png' },
+      { 'base': 'sub-anon/0010/montage0004.png', 'mask': 'sub-anon/0010/lesion0004.png' },
+      { 'base': 'sub-anon/0010/montage0005.png', 'mask': 'sub-anon/0010/lesion0005.png' },
+      { 'base': 'sub-anon/0010/montage0006.png', 'mask': 'sub-anon/0010/lesion0006.png' },
+      { 'base': 'sub-anon/0010/montage0007.png', 'mask': 'sub-anon/0010/lesion0007.png' },
+      { 'base': 'sub-anon/0010/montage0008.png', 'mask': 'sub-anon/0010/lesion0008.png' },
+      { 'base': 'sub-anon/0010/montage0009.png', 'mask': 'sub-anon/0010/lesion0009.png' },
+      { 'base': 'sub-anon/0010/montage0010.png', 'mask': 'sub-anon/0010/lesion0010.png' },
+      { 'base': 'sub-anon/0010/montage0011.png', 'mask': 'sub-anon/0010/lesion0011.png' },
+      { 'base': 'sub-anon/0010/montage0012.png', 'mask': 'sub-anon/0010/lesion0012.png' },
+      { 'base': 'sub-anon/0010/montage0013.png', 'mask': 'sub-anon/0010/lesion0013.png' },
+      { 'base': 'sub-anon/0010/montage0014.png', 'mask': 'sub-anon/0010/lesion0014.png' },
+      { 'base': 'sub-anon/0010/montage0015.png', 'mask': 'sub-anon/0010/lesion0015.png' },
+      { 'base': 'sub-anon/0010/montage0016.png', 'mask': 'sub-anon/0010/lesion0016.png' },
+    ]},
+  '11': {
+    'name': '0011',
+    'images': [
+      { 'base': 'sub-anon/0011/montage0000.png', 'mask': 'sub-anon/0011/lesion0000.png' },
+      { 'base': 'sub-anon/0011/montage0001.png', 'mask': 'sub-anon/0011/lesion0001.png' },
+      { 'base': 'sub-anon/0011/montage0002.png', 'mask': 'sub-anon/0011/lesion0002.png' },
+      { 'base': 'sub-anon/0011/montage0003.png', 'mask': 'sub-anon/0011/lesion0003.png' },
+      { 'base': 'sub-anon/0011/montage0004.png', 'mask': 'sub-anon/0011/lesion0004.png' },
+      { 'base': 'sub-anon/0011/montage0005.png', 'mask': 'sub-anon/0011/lesion0005.png' },
+      { 'base': 'sub-anon/0011/montage0006.png', 'mask': 'sub-anon/0011/lesion0006.png' },
+      { 'base': 'sub-anon/0011/montage0007.png', 'mask': 'sub-anon/0011/lesion0007.png' },
+      { 'base': 'sub-anon/0011/montage0008.png', 'mask': 'sub-anon/0011/lesion0008.png' },
+      { 'base': 'sub-anon/0011/montage0009.png', 'mask': 'sub-anon/0011/lesion0009.png' },
+      { 'base': 'sub-anon/0011/montage0010.png', 'mask': 'sub-anon/0011/lesion0010.png' },
+      { 'base': 'sub-anon/0011/montage0011.png', 'mask': 'sub-anon/0011/lesion0011.png' },
+      { 'base': 'sub-anon/0011/montage0012.png', 'mask': 'sub-anon/0011/lesion0012.png' },
+    ]},
+  '12': {
+    'name': '0012',
+    'images': [
+      { 'base': 'sub-anon/0012/montage0000.png', 'mask': 'sub-anon/0012/lesion0000.png' },
+      { 'base': 'sub-anon/0012/montage0001.png', 'mask': 'sub-anon/0012/lesion0001.png' },
+      { 'base': 'sub-anon/0012/montage0002.png', 'mask': 'sub-anon/0012/lesion0002.png' },
+      { 'base': 'sub-anon/0012/montage0003.png', 'mask': 'sub-anon/0012/lesion0003.png' },
+      { 'base': 'sub-anon/0012/montage0004.png', 'mask': 'sub-anon/0012/lesion0004.png' },
+      { 'base': 'sub-anon/0012/montage0005.png', 'mask': 'sub-anon/0012/lesion0005.png' },
+      { 'base': 'sub-anon/0012/montage0006.png', 'mask': 'sub-anon/0012/lesion0006.png' },
+      { 'base': 'sub-anon/0012/montage0007.png', 'mask': 'sub-anon/0012/lesion0007.png' },
+      { 'base': 'sub-anon/0012/montage0008.png', 'mask': 'sub-anon/0012/lesion0008.png' },
+      { 'base': 'sub-anon/0012/montage0009.png', 'mask': 'sub-anon/0012/lesion0009.png' },
+      { 'base': 'sub-anon/0012/montage0010.png', 'mask': 'sub-anon/0012/lesion0010.png' },
+      { 'base': 'sub-anon/0012/montage0011.png', 'mask': 'sub-anon/0012/lesion0011.png' },
+      { 'base': 'sub-anon/0012/montage0012.png', 'mask': 'sub-anon/0012/lesion0012.png' },
+      { 'base': 'sub-anon/0012/montage0013.png', 'mask': 'sub-anon/0012/lesion0013.png' },
+      { 'base': 'sub-anon/0012/montage0014.png', 'mask': 'sub-anon/0012/lesion0014.png' },
+      { 'base': 'sub-anon/0012/montage0015.png', 'mask': 'sub-anon/0012/lesion0015.png' },
+    ]},
+  '13': {
+    'name': '0013',
+    'images': [
+      { 'base': 'sub-anon/0013/montage0000.png', 'mask': 'sub-anon/0013/lesion0000.png' },
+      { 'base': 'sub-anon/0013/montage0001.png', 'mask': 'sub-anon/0013/lesion0001.png' },
+      { 'base': 'sub-anon/0013/montage0002.png', 'mask': 'sub-anon/0013/lesion0002.png' },
+      { 'base': 'sub-anon/0013/montage0003.png', 'mask': 'sub-anon/0013/lesion0003.png' },
+      { 'base': 'sub-anon/0013/montage0004.png', 'mask': 'sub-anon/0013/lesion0004.png' },
+      { 'base': 'sub-anon/0013/montage0005.png', 'mask': 'sub-anon/0013/lesion0005.png' },
+      { 'base': 'sub-anon/0013/montage0006.png', 'mask': 'sub-anon/0013/lesion0006.png' },
+      { 'base': 'sub-anon/0013/montage0007.png', 'mask': 'sub-anon/0013/lesion0007.png' },
+      { 'base': 'sub-anon/0013/montage0008.png', 'mask': 'sub-anon/0013/lesion0008.png' },
+      { 'base': 'sub-anon/0013/montage0009.png', 'mask': 'sub-anon/0013/lesion0009.png' },
+      { 'base': 'sub-anon/0013/montage0010.png', 'mask': 'sub-anon/0013/lesion0010.png' },
+      { 'base': 'sub-anon/0013/montage0011.png', 'mask': 'sub-anon/0013/lesion0011.png' },
+      { 'base': 'sub-anon/0013/montage0012.png', 'mask': 'sub-anon/0013/lesion0012.png' },
+      { 'base': 'sub-anon/0013/montage0013.png', 'mask': 'sub-anon/0013/lesion0013.png' },
+    ]},
+  '14': {
+    'name': '0014',
+    'images': [
+      { 'base': 'sub-anon/0014/montage0000.png', 'mask': 'sub-anon/0014/lesion0000.png' },
+      { 'base': 'sub-anon/0014/montage0001.png', 'mask': 'sub-anon/0014/lesion0001.png' },
+      { 'base': 'sub-anon/0014/montage0002.png', 'mask': 'sub-anon/0014/lesion0002.png' },
+      { 'base': 'sub-anon/0014/montage0003.png', 'mask': 'sub-anon/0014/lesion0003.png' },
+      { 'base': 'sub-anon/0014/montage0004.png', 'mask': 'sub-anon/0014/lesion0004.png' },
+      { 'base': 'sub-anon/0014/montage0005.png', 'mask': 'sub-anon/0014/lesion0005.png' },
+      { 'base': 'sub-anon/0014/montage0006.png', 'mask': 'sub-anon/0014/lesion0006.png' },
+      { 'base': 'sub-anon/0014/montage0007.png', 'mask': 'sub-anon/0014/lesion0007.png' },
+      { 'base': 'sub-anon/0014/montage0008.png', 'mask': 'sub-anon/0014/lesion0008.png' },
+      { 'base': 'sub-anon/0014/montage0009.png', 'mask': 'sub-anon/0014/lesion0009.png' },
+    ]},
+  '15': {
+    'name': '0015',
+    'images': [
+      { 'base': 'sub-anon/0015/montage0000.png', 'mask': 'sub-anon/0015/lesion0000.png' },
+      { 'base': 'sub-anon/0015/montage0001.png', 'mask': 'sub-anon/0015/lesion0001.png' },
+      { 'base': 'sub-anon/0015/montage0002.png', 'mask': 'sub-anon/0015/lesion0002.png' },
+      { 'base': 'sub-anon/0015/montage0003.png', 'mask': 'sub-anon/0015/lesion0003.png' },
+      { 'base': 'sub-anon/0015/montage0004.png', 'mask': 'sub-anon/0015/lesion0004.png' },
+      { 'base': 'sub-anon/0015/montage0005.png', 'mask': 'sub-anon/0015/lesion0005.png' },
+      { 'base': 'sub-anon/0015/montage0006.png', 'mask': 'sub-anon/0015/lesion0006.png' },
+      { 'base': 'sub-anon/0015/montage0007.png', 'mask': 'sub-anon/0015/lesion0007.png' },
+      { 'base': 'sub-anon/0015/montage0008.png', 'mask': 'sub-anon/0015/lesion0008.png' },
+    ]},
+  '16': {
+    'name': '0016',
+    'images': [
+      { 'base': 'sub-anon/0016/montage0000.png', 'mask': 'sub-anon/0016/lesion0000.png' },
+      { 'base': 'sub-anon/0016/montage0001.png', 'mask': 'sub-anon/0016/lesion0001.png' },
+      { 'base': 'sub-anon/0016/montage0002.png', 'mask': 'sub-anon/0016/lesion0002.png' },
+      { 'base': 'sub-anon/0016/montage0003.png', 'mask': 'sub-anon/0016/lesion0003.png' },
+      { 'base': 'sub-anon/0016/montage0004.png', 'mask': 'sub-anon/0016/lesion0004.png' },
+      { 'base': 'sub-anon/0016/montage0005.png', 'mask': 'sub-anon/0016/lesion0005.png' },
+      { 'base': 'sub-anon/0016/montage0006.png', 'mask': 'sub-anon/0016/lesion0006.png' },
+      { 'base': 'sub-anon/0016/montage0007.png', 'mask': 'sub-anon/0016/lesion0007.png' },
+      { 'base': 'sub-anon/0016/montage0008.png', 'mask': 'sub-anon/0016/lesion0008.png' },
+      { 'base': 'sub-anon/0016/montage0009.png', 'mask': 'sub-anon/0016/lesion0009.png' },
+      { 'base': 'sub-anon/0016/montage0010.png', 'mask': 'sub-anon/0016/lesion0010.png' },
+      { 'base': 'sub-anon/0016/montage0011.png', 'mask': 'sub-anon/0016/lesion0011.png' },
+    ]},
+  '17': {
+    'name': '0017',
+    'images': [
+      { 'base': 'sub-anon/0017/montage0000.png', 'mask': 'sub-anon/0017/lesion0000.png' },
+      { 'base': 'sub-anon/0017/montage0001.png', 'mask': 'sub-anon/0017/lesion0001.png' },
+      { 'base': 'sub-anon/0017/montage0002.png', 'mask': 'sub-anon/0017/lesion0002.png' },
+      { 'base': 'sub-anon/0017/montage0003.png', 'mask': 'sub-anon/0017/lesion0003.png' },
+      { 'base': 'sub-anon/0017/montage0004.png', 'mask': 'sub-anon/0017/lesion0004.png' },
+      { 'base': 'sub-anon/0017/montage0005.png', 'mask': 'sub-anon/0017/lesion0005.png' },
+      { 'base': 'sub-anon/0017/montage0006.png', 'mask': 'sub-anon/0017/lesion0006.png' },
+      { 'base': 'sub-anon/0017/montage0007.png', 'mask': 'sub-anon/0017/lesion0007.png' },
+      { 'base': 'sub-anon/0017/montage0008.png', 'mask': 'sub-anon/0017/lesion0008.png' },
+      { 'base': 'sub-anon/0017/montage0009.png', 'mask': 'sub-anon/0017/lesion0009.png' },
+    ]},
+  '18': {
+    'name': '0018',
+    'images': [
+      { 'base': 'sub-anon/0018/montage0000.png', 'mask': 'sub-anon/0018/lesion0000.png' },
+      { 'base': 'sub-anon/0018/montage0001.png', 'mask': 'sub-anon/0018/lesion0001.png' },
+      { 'base': 'sub-anon/0018/montage0002.png', 'mask': 'sub-anon/0018/lesion0002.png' },
+      { 'base': 'sub-anon/0018/montage0003.png', 'mask': 'sub-anon/0018/lesion0003.png' },
+      { 'base': 'sub-anon/0018/montage0004.png', 'mask': 'sub-anon/0018/lesion0004.png' },
+      { 'base': 'sub-anon/0018/montage0005.png', 'mask': 'sub-anon/0018/lesion0005.png' },
+      { 'base': 'sub-anon/0018/montage0006.png', 'mask': 'sub-anon/0018/lesion0006.png' },
+      { 'base': 'sub-anon/0018/montage0007.png', 'mask': 'sub-anon/0018/lesion0007.png' },
+      { 'base': 'sub-anon/0018/montage0008.png', 'mask': 'sub-anon/0018/lesion0008.png' },
+      { 'base': 'sub-anon/0018/montage0009.png', 'mask': 'sub-anon/0018/lesion0009.png' },
+      { 'base': 'sub-anon/0018/montage0010.png', 'mask': 'sub-anon/0018/lesion0010.png' },
+    ]},
+  '19': {
+    'name': '0019',
+    'images': [
+      { 'base': 'sub-anon/0019/montage0000.png', 'mask': 'sub-anon/0019/lesion0000.png' },
+      { 'base': 'sub-anon/0019/montage0001.png', 'mask': 'sub-anon/0019/lesion0001.png' },
+      { 'base': 'sub-anon/0019/montage0002.png', 'mask': 'sub-anon/0019/lesion0002.png' },
+      { 'base': 'sub-anon/0019/montage0003.png', 'mask': 'sub-anon/0019/lesion0003.png' },
+      { 'base': 'sub-anon/0019/montage0004.png', 'mask': 'sub-anon/0019/lesion0004.png' },
+      { 'base': 'sub-anon/0019/montage0005.png', 'mask': 'sub-anon/0019/lesion0005.png' },
+      { 'base': 'sub-anon/0019/montage0006.png', 'mask': 'sub-anon/0019/lesion0006.png' },
+      { 'base': 'sub-anon/0019/montage0007.png', 'mask': 'sub-anon/0019/lesion0007.png' },
+      { 'base': 'sub-anon/0019/montage0008.png', 'mask': 'sub-anon/0019/lesion0008.png' },
+      { 'base': 'sub-anon/0019/montage0009.png', 'mask': 'sub-anon/0019/lesion0009.png' },
+    ]},
+  '20': {
+    'name': '0020',
+    'images': [
+      { 'base': 'sub-anon/0020/montage0000.png', 'mask': 'sub-anon/0020/lesion0000.png' },
+      { 'base': 'sub-anon/0020/montage0001.png', 'mask': 'sub-anon/0020/lesion0001.png' },
+      { 'base': 'sub-anon/0020/montage0002.png', 'mask': 'sub-anon/0020/lesion0002.png' },
+      { 'base': 'sub-anon/0020/montage0003.png', 'mask': 'sub-anon/0020/lesion0003.png' },
+      { 'base': 'sub-anon/0020/montage0004.png', 'mask': 'sub-anon/0020/lesion0004.png' },
+      { 'base': 'sub-anon/0020/montage0005.png', 'mask': 'sub-anon/0020/lesion0005.png' },
+      { 'base': 'sub-anon/0020/montage0006.png', 'mask': 'sub-anon/0020/lesion0006.png' },
+      { 'base': 'sub-anon/0020/montage0007.png', 'mask': 'sub-anon/0020/lesion0007.png' },
+      { 'base': 'sub-anon/0020/montage0008.png', 'mask': 'sub-anon/0020/lesion0008.png' },
+      { 'base': 'sub-anon/0020/montage0009.png', 'mask': 'sub-anon/0020/lesion0009.png' },
+    ]},
+  '21': {
+    'name': '0021',
+    'images': [
+      { 'base': 'sub-anon/0021/montage0000.png', 'mask': 'sub-anon/0021/lesion0000.png' },
+      { 'base': 'sub-anon/0021/montage0001.png', 'mask': 'sub-anon/0021/lesion0001.png' },
+      { 'base': 'sub-anon/0021/montage0002.png', 'mask': 'sub-anon/0021/lesion0002.png' },
+      { 'base': 'sub-anon/0021/montage0003.png', 'mask': 'sub-anon/0021/lesion0003.png' },
+      { 'base': 'sub-anon/0021/montage0004.png', 'mask': 'sub-anon/0021/lesion0004.png' },
+      { 'base': 'sub-anon/0021/montage0005.png', 'mask': 'sub-anon/0021/lesion0005.png' },
+      { 'base': 'sub-anon/0021/montage0006.png', 'mask': 'sub-anon/0021/lesion0006.png' },
+      { 'base': 'sub-anon/0021/montage0007.png', 'mask': 'sub-anon/0021/lesion0007.png' },
+      { 'base': 'sub-anon/0021/montage0008.png', 'mask': 'sub-anon/0021/lesion0008.png' },
+      { 'base': 'sub-anon/0021/montage0009.png', 'mask': 'sub-anon/0021/lesion0009.png' },
+      { 'base': 'sub-anon/0021/montage0010.png', 'mask': 'sub-anon/0021/lesion0010.png' },
+      { 'base': 'sub-anon/0021/montage0011.png', 'mask': 'sub-anon/0021/lesion0011.png' },
+    ]},
+  '22': {
+    'name': '0022',
+    'images': [
+      { 'base': 'sub-anon/0022/montage0000.png', 'mask': 'sub-anon/0022/lesion0000.png' },
+      { 'base': 'sub-anon/0022/montage0001.png', 'mask': 'sub-anon/0022/lesion0001.png' },
+      { 'base': 'sub-anon/0022/montage0002.png', 'mask': 'sub-anon/0022/lesion0002.png' },
+      { 'base': 'sub-anon/0022/montage0003.png', 'mask': 'sub-anon/0022/lesion0003.png' },
+      { 'base': 'sub-anon/0022/montage0004.png', 'mask': 'sub-anon/0022/lesion0004.png' },
+      { 'base': 'sub-anon/0022/montage0005.png', 'mask': 'sub-anon/0022/lesion0005.png' },
+      { 'base': 'sub-anon/0022/montage0006.png', 'mask': 'sub-anon/0022/lesion0006.png' },
+      { 'base': 'sub-anon/0022/montage0007.png', 'mask': 'sub-anon/0022/lesion0007.png' },
+      { 'base': 'sub-anon/0022/montage0008.png', 'mask': 'sub-anon/0022/lesion0008.png' },
+      { 'base': 'sub-anon/0022/montage0009.png', 'mask': 'sub-anon/0022/lesion0009.png' },
+      { 'base': 'sub-anon/0022/montage0010.png', 'mask': 'sub-anon/0022/lesion0010.png' },
+    ]},
+  '23': {
+    'name': '0023',
+    'images': [
+      { 'base': 'sub-anon/0023/montage0000.png', 'mask': 'sub-anon/0023/lesion0000.png' },
+      { 'base': 'sub-anon/0023/montage0001.png', 'mask': 'sub-anon/0023/lesion0001.png' },
+      { 'base': 'sub-anon/0023/montage0002.png', 'mask': 'sub-anon/0023/lesion0002.png' },
+      { 'base': 'sub-anon/0023/montage0003.png', 'mask': 'sub-anon/0023/lesion0003.png' },
+      { 'base': 'sub-anon/0023/montage0004.png', 'mask': 'sub-anon/0023/lesion0004.png' },
+      { 'base': 'sub-anon/0023/montage0005.png', 'mask': 'sub-anon/0023/lesion0005.png' },
+      { 'base': 'sub-anon/0023/montage0006.png', 'mask': 'sub-anon/0023/lesion0006.png' },
+      { 'base': 'sub-anon/0023/montage0007.png', 'mask': 'sub-anon/0023/lesion0007.png' },
+      { 'base': 'sub-anon/0023/montage0008.png', 'mask': 'sub-anon/0023/lesion0008.png' },
+      { 'base': 'sub-anon/0023/montage0009.png', 'mask': 'sub-anon/0023/lesion0009.png' },
+      { 'base': 'sub-anon/0023/montage0010.png', 'mask': 'sub-anon/0023/lesion0010.png' },
+    ]},
+  '24': {
+    'name': '0024',
+    'images': [
+      { 'base': 'sub-anon/0024/montage0000.png', 'mask': 'sub-anon/0024/lesion0000.png' },
+      { 'base': 'sub-anon/0024/montage0001.png', 'mask': 'sub-anon/0024/lesion0001.png' },
+      { 'base': 'sub-anon/0024/montage0002.png', 'mask': 'sub-anon/0024/lesion0002.png' },
+      { 'base': 'sub-anon/0024/montage0003.png', 'mask': 'sub-anon/0024/lesion0003.png' },
+      { 'base': 'sub-anon/0024/montage0004.png', 'mask': 'sub-anon/0024/lesion0004.png' },
+      { 'base': 'sub-anon/0024/montage0005.png', 'mask': 'sub-anon/0024/lesion0005.png' },
+      { 'base': 'sub-anon/0024/montage0006.png', 'mask': 'sub-anon/0024/lesion0006.png' },
+      { 'base': 'sub-anon/0024/montage0007.png', 'mask': 'sub-anon/0024/lesion0007.png' },
+      { 'base': 'sub-anon/0024/montage0008.png', 'mask': 'sub-anon/0024/lesion0008.png' },
+    ]},
+  '25': {
+    'name': '0025',
+    'images': [
+      { 'base': 'sub-anon/0025/montage0000.png', 'mask': 'sub-anon/0025/lesion0000.png' },
+      { 'base': 'sub-anon/0025/montage0001.png', 'mask': 'sub-anon/0025/lesion0001.png' },
+      { 'base': 'sub-anon/0025/montage0002.png', 'mask': 'sub-anon/0025/lesion0002.png' },
+      { 'base': 'sub-anon/0025/montage0003.png', 'mask': 'sub-anon/0025/lesion0003.png' },
+      { 'base': 'sub-anon/0025/montage0004.png', 'mask': 'sub-anon/0025/lesion0004.png' },
+      { 'base': 'sub-anon/0025/montage0005.png', 'mask': 'sub-anon/0025/lesion0005.png' },
+      { 'base': 'sub-anon/0025/montage0006.png', 'mask': 'sub-anon/0025/lesion0006.png' },
+      { 'base': 'sub-anon/0025/montage0007.png', 'mask': 'sub-anon/0025/lesion0007.png' },
+      { 'base': 'sub-anon/0025/montage0008.png', 'mask': 'sub-anon/0025/lesion0008.png' },
+      { 'base': 'sub-anon/0025/montage0009.png', 'mask': 'sub-anon/0025/lesion0009.png' },
+      { 'base': 'sub-anon/0025/montage0010.png', 'mask': 'sub-anon/0025/lesion0010.png' },
+      { 'base': 'sub-anon/0025/montage0011.png', 'mask': 'sub-anon/0025/lesion0011.png' },
+      { 'base': 'sub-anon/0025/montage0012.png', 'mask': 'sub-anon/0025/lesion0012.png' },
+      { 'base': 'sub-anon/0025/montage0013.png', 'mask': 'sub-anon/0025/lesion0013.png' },
+      { 'base': 'sub-anon/0025/montage0014.png', 'mask': 'sub-anon/0025/lesion0014.png' },
+      { 'base': 'sub-anon/0025/montage0015.png', 'mask': 'sub-anon/0025/lesion0015.png' },
+    ]},
+  '26': {
+    'name': '0026',
+    'images': [
+      { 'base': 'sub-anon/0026/montage0000.png', 'mask': 'sub-anon/0026/lesion0000.png' },
+      { 'base': 'sub-anon/0026/montage0001.png', 'mask': 'sub-anon/0026/lesion0001.png' },
+      { 'base': 'sub-anon/0026/montage0002.png', 'mask': 'sub-anon/0026/lesion0002.png' },
+      { 'base': 'sub-anon/0026/montage0003.png', 'mask': 'sub-anon/0026/lesion0003.png' },
+      { 'base': 'sub-anon/0026/montage0004.png', 'mask': 'sub-anon/0026/lesion0004.png' },
+      { 'base': 'sub-anon/0026/montage0005.png', 'mask': 'sub-anon/0026/lesion0005.png' },
+      { 'base': 'sub-anon/0026/montage0006.png', 'mask': 'sub-anon/0026/lesion0006.png' },
+      { 'base': 'sub-anon/0026/montage0007.png', 'mask': 'sub-anon/0026/lesion0007.png' },
+      { 'base': 'sub-anon/0026/montage0008.png', 'mask': 'sub-anon/0026/lesion0008.png' },
+      { 'base': 'sub-anon/0026/montage0009.png', 'mask': 'sub-anon/0026/lesion0009.png' },
+      { 'base': 'sub-anon/0026/montage0010.png', 'mask': 'sub-anon/0026/lesion0010.png' },
+      { 'base': 'sub-anon/0026/montage0011.png', 'mask': 'sub-anon/0026/lesion0011.png' },
+    ]},
+  '27': {
+    'name': '0027',
+    'images': [
+      { 'base': 'sub-anon/0027/montage0000.png', 'mask': 'sub-anon/0027/lesion0000.png' },
+      { 'base': 'sub-anon/0027/montage0001.png', 'mask': 'sub-anon/0027/lesion0001.png' },
+      { 'base': 'sub-anon/0027/montage0002.png', 'mask': 'sub-anon/0027/lesion0002.png' },
+      { 'base': 'sub-anon/0027/montage0003.png', 'mask': 'sub-anon/0027/lesion0003.png' },
+      { 'base': 'sub-anon/0027/montage0004.png', 'mask': 'sub-anon/0027/lesion0004.png' },
+      { 'base': 'sub-anon/0027/montage0005.png', 'mask': 'sub-anon/0027/lesion0005.png' },
+      { 'base': 'sub-anon/0027/montage0006.png', 'mask': 'sub-anon/0027/lesion0006.png' },
+      { 'base': 'sub-anon/0027/montage0007.png', 'mask': 'sub-anon/0027/lesion0007.png' },
+      { 'base': 'sub-anon/0027/montage0008.png', 'mask': 'sub-anon/0027/lesion0008.png' },
+      { 'base': 'sub-anon/0027/montage0009.png', 'mask': 'sub-anon/0027/lesion0009.png' },
+      { 'base': 'sub-anon/0027/montage0010.png', 'mask': 'sub-anon/0027/lesion0010.png' },
+      { 'base': 'sub-anon/0027/montage0011.png', 'mask': 'sub-anon/0027/lesion0011.png' },
+      { 'base': 'sub-anon/0027/montage0012.png', 'mask': 'sub-anon/0027/lesion0012.png' },
+    ]},
+  '28': {
+    'name': '0028',
+    'images': [
+      { 'base': 'sub-anon/0028/montage0000.png', 'mask': 'sub-anon/0028/lesion0000.png' },
+      { 'base': 'sub-anon/0028/montage0001.png', 'mask': 'sub-anon/0028/lesion0001.png' },
+      { 'base': 'sub-anon/0028/montage0002.png', 'mask': 'sub-anon/0028/lesion0002.png' },
+      { 'base': 'sub-anon/0028/montage0003.png', 'mask': 'sub-anon/0028/lesion0003.png' },
+      { 'base': 'sub-anon/0028/montage0004.png', 'mask': 'sub-anon/0028/lesion0004.png' },
+      { 'base': 'sub-anon/0028/montage0005.png', 'mask': 'sub-anon/0028/lesion0005.png' },
+      { 'base': 'sub-anon/0028/montage0006.png', 'mask': 'sub-anon/0028/lesion0006.png' },
+      { 'base': 'sub-anon/0028/montage0007.png', 'mask': 'sub-anon/0028/lesion0007.png' },
+      { 'base': 'sub-anon/0028/montage0008.png', 'mask': 'sub-anon/0028/lesion0008.png' },
+      { 'base': 'sub-anon/0028/montage0009.png', 'mask': 'sub-anon/0028/lesion0009.png' },
+      { 'base': 'sub-anon/0028/montage0010.png', 'mask': 'sub-anon/0028/lesion0010.png' },
+      { 'base': 'sub-anon/0028/montage0011.png', 'mask': 'sub-anon/0028/lesion0011.png' },
+      { 'base': 'sub-anon/0028/montage0012.png', 'mask': 'sub-anon/0028/lesion0012.png' },
+      { 'base': 'sub-anon/0028/montage0013.png', 'mask': 'sub-anon/0028/lesion0013.png' },
+      { 'base': 'sub-anon/0028/montage0014.png', 'mask': 'sub-anon/0028/lesion0014.png' },
+      { 'base': 'sub-anon/0028/montage0015.png', 'mask': 'sub-anon/0028/lesion0015.png' },
+      { 'base': 'sub-anon/0028/montage0016.png', 'mask': 'sub-anon/0028/lesion0016.png' },
+      { 'base': 'sub-anon/0028/montage0017.png', 'mask': 'sub-anon/0028/lesion0017.png' },
+    ]},
+  '29': {
+    'name': '0029',
+    'images': [
+      { 'base': 'sub-anon/0029/montage0000.png', 'mask': 'sub-anon/0029/lesion0000.png' },
+      { 'base': 'sub-anon/0029/montage0001.png', 'mask': 'sub-anon/0029/lesion0001.png' },
+      { 'base': 'sub-anon/0029/montage0002.png', 'mask': 'sub-anon/0029/lesion0002.png' },
+      { 'base': 'sub-anon/0029/montage0003.png', 'mask': 'sub-anon/0029/lesion0003.png' },
+      { 'base': 'sub-anon/0029/montage0004.png', 'mask': 'sub-anon/0029/lesion0004.png' },
+      { 'base': 'sub-anon/0029/montage0005.png', 'mask': 'sub-anon/0029/lesion0005.png' },
+      { 'base': 'sub-anon/0029/montage0006.png', 'mask': 'sub-anon/0029/lesion0006.png' },
+      { 'base': 'sub-anon/0029/montage0007.png', 'mask': 'sub-anon/0029/lesion0007.png' },
+      { 'base': 'sub-anon/0029/montage0008.png', 'mask': 'sub-anon/0029/lesion0008.png' },
+      { 'base': 'sub-anon/0029/montage0009.png', 'mask': 'sub-anon/0029/lesion0009.png' },
+      { 'base': 'sub-anon/0029/montage0010.png', 'mask': 'sub-anon/0029/lesion0010.png' },
+    ]},
+  '30': {
+    'name': '0030',
+    'images': [
+      { 'base': 'sub-anon/0030/montage0000.png', 'mask': 'sub-anon/0030/lesion0000.png' },
+      { 'base': 'sub-anon/0030/montage0001.png', 'mask': 'sub-anon/0030/lesion0001.png' },
+      { 'base': 'sub-anon/0030/montage0002.png', 'mask': 'sub-anon/0030/lesion0002.png' },
+      { 'base': 'sub-anon/0030/montage0003.png', 'mask': 'sub-anon/0030/lesion0003.png' },
+      { 'base': 'sub-anon/0030/montage0004.png', 'mask': 'sub-anon/0030/lesion0004.png' },
+      { 'base': 'sub-anon/0030/montage0005.png', 'mask': 'sub-anon/0030/lesion0005.png' },
+      { 'base': 'sub-anon/0030/montage0006.png', 'mask': 'sub-anon/0030/lesion0006.png' },
+      { 'base': 'sub-anon/0030/montage0007.png', 'mask': 'sub-anon/0030/lesion0007.png' },
+      { 'base': 'sub-anon/0030/montage0008.png', 'mask': 'sub-anon/0030/lesion0008.png' },
+      { 'base': 'sub-anon/0030/montage0009.png', 'mask': 'sub-anon/0030/lesion0009.png' },
+      { 'base': 'sub-anon/0030/montage0010.png', 'mask': 'sub-anon/0030/lesion0010.png' },
+      { 'base': 'sub-anon/0030/montage0011.png', 'mask': 'sub-anon/0030/lesion0011.png' },
+      { 'base': 'sub-anon/0030/montage0012.png', 'mask': 'sub-anon/0030/lesion0012.png' },
+      { 'base': 'sub-anon/0030/montage0013.png', 'mask': 'sub-anon/0030/lesion0013.png' },
+      { 'base': 'sub-anon/0030/montage0014.png', 'mask': 'sub-anon/0030/lesion0014.png' },
+    ]},
+  '31': {
+    'name': '0031',
+    'images': [
+      { 'base': 'sub-anon/0031/montage0000.png', 'mask': 'sub-anon/0031/lesion0000.png' },
+      { 'base': 'sub-anon/0031/montage0001.png', 'mask': 'sub-anon/0031/lesion0001.png' },
+      { 'base': 'sub-anon/0031/montage0002.png', 'mask': 'sub-anon/0031/lesion0002.png' },
+      { 'base': 'sub-anon/0031/montage0003.png', 'mask': 'sub-anon/0031/lesion0003.png' },
+      { 'base': 'sub-anon/0031/montage0004.png', 'mask': 'sub-anon/0031/lesion0004.png' },
+      { 'base': 'sub-anon/0031/montage0005.png', 'mask': 'sub-anon/0031/lesion0005.png' },
+      { 'base': 'sub-anon/0031/montage0006.png', 'mask': 'sub-anon/0031/lesion0006.png' },
+      { 'base': 'sub-anon/0031/montage0007.png', 'mask': 'sub-anon/0031/lesion0007.png' },
+      { 'base': 'sub-anon/0031/montage0008.png', 'mask': 'sub-anon/0031/lesion0008.png' },
+      { 'base': 'sub-anon/0031/montage0009.png', 'mask': 'sub-anon/0031/lesion0009.png' },
+    ]},
+  '32': {
+    'name': '0032',
+    'images': [
+      { 'base': 'sub-anon/0032/montage0000.png', 'mask': 'sub-anon/0032/lesion0000.png' },
+      { 'base': 'sub-anon/0032/montage0001.png', 'mask': 'sub-anon/0032/lesion0001.png' },
+      { 'base': 'sub-anon/0032/montage0002.png', 'mask': 'sub-anon/0032/lesion0002.png' },
+      { 'base': 'sub-anon/0032/montage0003.png', 'mask': 'sub-anon/0032/lesion0003.png' },
+      { 'base': 'sub-anon/0032/montage0004.png', 'mask': 'sub-anon/0032/lesion0004.png' },
+      { 'base': 'sub-anon/0032/montage0005.png', 'mask': 'sub-anon/0032/lesion0005.png' },
+      { 'base': 'sub-anon/0032/montage0006.png', 'mask': 'sub-anon/0032/lesion0006.png' },
+      { 'base': 'sub-anon/0032/montage0007.png', 'mask': 'sub-anon/0032/lesion0007.png' },
+      { 'base': 'sub-anon/0032/montage0008.png', 'mask': 'sub-anon/0032/lesion0008.png' },
+      { 'base': 'sub-anon/0032/montage0009.png', 'mask': 'sub-anon/0032/lesion0009.png' },
+      { 'base': 'sub-anon/0032/montage0010.png', 'mask': 'sub-anon/0032/lesion0010.png' },
+      { 'base': 'sub-anon/0032/montage0011.png', 'mask': 'sub-anon/0032/lesion0011.png' },
+      { 'base': 'sub-anon/0032/montage0012.png', 'mask': 'sub-anon/0032/lesion0012.png' },
+    ]},
+  '33': {
+    'name': '0033',
+    'images': [
+      { 'base': 'sub-anon/0033/montage0000.png', 'mask': 'sub-anon/0033/lesion0000.png' },
+      { 'base': 'sub-anon/0033/montage0001.png', 'mask': 'sub-anon/0033/lesion0001.png' },
+      { 'base': 'sub-anon/0033/montage0002.png', 'mask': 'sub-anon/0033/lesion0002.png' },
+      { 'base': 'sub-anon/0033/montage0003.png', 'mask': 'sub-anon/0033/lesion0003.png' },
+      { 'base': 'sub-anon/0033/montage0004.png', 'mask': 'sub-anon/0033/lesion0004.png' },
+      { 'base': 'sub-anon/0033/montage0005.png', 'mask': 'sub-anon/0033/lesion0005.png' },
+      { 'base': 'sub-anon/0033/montage0006.png', 'mask': 'sub-anon/0033/lesion0006.png' },
+      { 'base': 'sub-anon/0033/montage0007.png', 'mask': 'sub-anon/0033/lesion0007.png' },
+      { 'base': 'sub-anon/0033/montage0008.png', 'mask': 'sub-anon/0033/lesion0008.png' },
+      { 'base': 'sub-anon/0033/montage0009.png', 'mask': 'sub-anon/0033/lesion0009.png' },
+      { 'base': 'sub-anon/0033/montage0010.png', 'mask': 'sub-anon/0033/lesion0010.png' },
+    ]},
+  '34': {
+    'name': '0034',
+    'images': [
+      { 'base': 'sub-anon/0034/montage0000.png', 'mask': 'sub-anon/0034/lesion0000.png' },
+      { 'base': 'sub-anon/0034/montage0001.png', 'mask': 'sub-anon/0034/lesion0001.png' },
+      { 'base': 'sub-anon/0034/montage0002.png', 'mask': 'sub-anon/0034/lesion0002.png' },
+      { 'base': 'sub-anon/0034/montage0003.png', 'mask': 'sub-anon/0034/lesion0003.png' },
+      { 'base': 'sub-anon/0034/montage0004.png', 'mask': 'sub-anon/0034/lesion0004.png' },
+      { 'base': 'sub-anon/0034/montage0005.png', 'mask': 'sub-anon/0034/lesion0005.png' },
+      { 'base': 'sub-anon/0034/montage0006.png', 'mask': 'sub-anon/0034/lesion0006.png' },
+      { 'base': 'sub-anon/0034/montage0007.png', 'mask': 'sub-anon/0034/lesion0007.png' },
+      { 'base': 'sub-anon/0034/montage0008.png', 'mask': 'sub-anon/0034/lesion0008.png' },
+      { 'base': 'sub-anon/0034/montage0009.png', 'mask': 'sub-anon/0034/lesion0009.png' },
+      { 'base': 'sub-anon/0034/montage0010.png', 'mask': 'sub-anon/0034/lesion0010.png' },
+      { 'base': 'sub-anon/0034/montage0011.png', 'mask': 'sub-anon/0034/lesion0011.png' },
+      { 'base': 'sub-anon/0034/montage0012.png', 'mask': 'sub-anon/0034/lesion0012.png' },
+      { 'base': 'sub-anon/0034/montage0013.png', 'mask': 'sub-anon/0034/lesion0013.png' },
+    ]},
+  '35': {
+    'name': '0035',
+    'images': [
+      { 'base': 'sub-anon/0035/montage0000.png', 'mask': 'sub-anon/0035/lesion0000.png' },
+      { 'base': 'sub-anon/0035/montage0001.png', 'mask': 'sub-anon/0035/lesion0001.png' },
+      { 'base': 'sub-anon/0035/montage0002.png', 'mask': 'sub-anon/0035/lesion0002.png' },
+      { 'base': 'sub-anon/0035/montage0003.png', 'mask': 'sub-anon/0035/lesion0003.png' },
+      { 'base': 'sub-anon/0035/montage0004.png', 'mask': 'sub-anon/0035/lesion0004.png' },
+      { 'base': 'sub-anon/0035/montage0005.png', 'mask': 'sub-anon/0035/lesion0005.png' },
+      { 'base': 'sub-anon/0035/montage0006.png', 'mask': 'sub-anon/0035/lesion0006.png' },
+      { 'base': 'sub-anon/0035/montage0007.png', 'mask': 'sub-anon/0035/lesion0007.png' },
+      { 'base': 'sub-anon/0035/montage0008.png', 'mask': 'sub-anon/0035/lesion0008.png' },
+      { 'base': 'sub-anon/0035/montage0009.png', 'mask': 'sub-anon/0035/lesion0009.png' },
+      { 'base': 'sub-anon/0035/montage0010.png', 'mask': 'sub-anon/0035/lesion0010.png' },
+      { 'base': 'sub-anon/0035/montage0011.png', 'mask': 'sub-anon/0035/lesion0011.png' },
+    ]},
+  '36': {
+    'name': '0036',
+    'images': [
+      { 'base': 'sub-anon/0036/montage0000.png', 'mask': 'sub-anon/0036/lesion0000.png' },
+      { 'base': 'sub-anon/0036/montage0001.png', 'mask': 'sub-anon/0036/lesion0001.png' },
+      { 'base': 'sub-anon/0036/montage0002.png', 'mask': 'sub-anon/0036/lesion0002.png' },
+      { 'base': 'sub-anon/0036/montage0003.png', 'mask': 'sub-anon/0036/lesion0003.png' },
+      { 'base': 'sub-anon/0036/montage0004.png', 'mask': 'sub-anon/0036/lesion0004.png' },
+      { 'base': 'sub-anon/0036/montage0005.png', 'mask': 'sub-anon/0036/lesion0005.png' },
+      { 'base': 'sub-anon/0036/montage0006.png', 'mask': 'sub-anon/0036/lesion0006.png' },
+      { 'base': 'sub-anon/0036/montage0007.png', 'mask': 'sub-anon/0036/lesion0007.png' },
+      { 'base': 'sub-anon/0036/montage0008.png', 'mask': 'sub-anon/0036/lesion0008.png' },
+      { 'base': 'sub-anon/0036/montage0009.png', 'mask': 'sub-anon/0036/lesion0009.png' },
+      { 'base': 'sub-anon/0036/montage0010.png', 'mask': 'sub-anon/0036/lesion0010.png' },
+      { 'base': 'sub-anon/0036/montage0011.png', 'mask': 'sub-anon/0036/lesion0011.png' },
+    ]},
+  '37': {
+    'name': '0037',
+    'images': [
+      { 'base': 'sub-anon/0037/montage0000.png', 'mask': 'sub-anon/0037/lesion0000.png' },
+      { 'base': 'sub-anon/0037/montage0001.png', 'mask': 'sub-anon/0037/lesion0001.png' },
+      { 'base': 'sub-anon/0037/montage0002.png', 'mask': 'sub-anon/0037/lesion0002.png' },
+      { 'base': 'sub-anon/0037/montage0003.png', 'mask': 'sub-anon/0037/lesion0003.png' },
+      { 'base': 'sub-anon/0037/montage0004.png', 'mask': 'sub-anon/0037/lesion0004.png' },
+      { 'base': 'sub-anon/0037/montage0005.png', 'mask': 'sub-anon/0037/lesion0005.png' },
+      { 'base': 'sub-anon/0037/montage0006.png', 'mask': 'sub-anon/0037/lesion0006.png' },
+      { 'base': 'sub-anon/0037/montage0007.png', 'mask': 'sub-anon/0037/lesion0007.png' },
+      { 'base': 'sub-anon/0037/montage0008.png', 'mask': 'sub-anon/0037/lesion0008.png' },
+      { 'base': 'sub-anon/0037/montage0009.png', 'mask': 'sub-anon/0037/lesion0009.png' },
+      { 'base': 'sub-anon/0037/montage0010.png', 'mask': 'sub-anon/0037/lesion0010.png' },
+    ]},
+  '38': {
+    'name': '0038',
+    'images': [
+      { 'base': 'sub-anon/0038/montage0000.png', 'mask': 'sub-anon/0038/lesion0000.png' },
+      { 'base': 'sub-anon/0038/montage0001.png', 'mask': 'sub-anon/0038/lesion0001.png' },
+      { 'base': 'sub-anon/0038/montage0002.png', 'mask': 'sub-anon/0038/lesion0002.png' },
+      { 'base': 'sub-anon/0038/montage0003.png', 'mask': 'sub-anon/0038/lesion0003.png' },
+      { 'base': 'sub-anon/0038/montage0004.png', 'mask': 'sub-anon/0038/lesion0004.png' },
+      { 'base': 'sub-anon/0038/montage0005.png', 'mask': 'sub-anon/0038/lesion0005.png' },
+      { 'base': 'sub-anon/0038/montage0006.png', 'mask': 'sub-anon/0038/lesion0006.png' },
+      { 'base': 'sub-anon/0038/montage0007.png', 'mask': 'sub-anon/0038/lesion0007.png' },
+      { 'base': 'sub-anon/0038/montage0008.png', 'mask': 'sub-anon/0038/lesion0008.png' },
+      { 'base': 'sub-anon/0038/montage0009.png', 'mask': 'sub-anon/0038/lesion0009.png' },
+      { 'base': 'sub-anon/0038/montage0010.png', 'mask': 'sub-anon/0038/lesion0010.png' },
+      { 'base': 'sub-anon/0038/montage0011.png', 'mask': 'sub-anon/0038/lesion0011.png' },
+      { 'base': 'sub-anon/0038/montage0012.png', 'mask': 'sub-anon/0038/lesion0012.png' },
+    ]},
+  '39': {
+    'name': '0039',
+    'images': [
+      { 'base': 'sub-anon/0039/montage0000.png', 'mask': 'sub-anon/0039/lesion0000.png' },
+      { 'base': 'sub-anon/0039/montage0001.png', 'mask': 'sub-anon/0039/lesion0001.png' },
+      { 'base': 'sub-anon/0039/montage0002.png', 'mask': 'sub-anon/0039/lesion0002.png' },
+      { 'base': 'sub-anon/0039/montage0003.png', 'mask': 'sub-anon/0039/lesion0003.png' },
+      { 'base': 'sub-anon/0039/montage0004.png', 'mask': 'sub-anon/0039/lesion0004.png' },
+      { 'base': 'sub-anon/0039/montage0005.png', 'mask': 'sub-anon/0039/lesion0005.png' },
+      { 'base': 'sub-anon/0039/montage0006.png', 'mask': 'sub-anon/0039/lesion0006.png' },
+      { 'base': 'sub-anon/0039/montage0007.png', 'mask': 'sub-anon/0039/lesion0007.png' },
+      { 'base': 'sub-anon/0039/montage0008.png', 'mask': 'sub-anon/0039/lesion0008.png' },
+      { 'base': 'sub-anon/0039/montage0009.png', 'mask': 'sub-anon/0039/lesion0009.png' },
+    ]},
+  '40': {
+    'name': '0040',
+    'images': [
+      { 'base': 'sub-anon/0040/montage0000.png', 'mask': 'sub-anon/0040/lesion0000.png' },
+      { 'base': 'sub-anon/0040/montage0001.png', 'mask': 'sub-anon/0040/lesion0001.png' },
+      { 'base': 'sub-anon/0040/montage0002.png', 'mask': 'sub-anon/0040/lesion0002.png' },
+      { 'base': 'sub-anon/0040/montage0003.png', 'mask': 'sub-anon/0040/lesion0003.png' },
+      { 'base': 'sub-anon/0040/montage0004.png', 'mask': 'sub-anon/0040/lesion0004.png' },
+      { 'base': 'sub-anon/0040/montage0005.png', 'mask': 'sub-anon/0040/lesion0005.png' },
+      { 'base': 'sub-anon/0040/montage0006.png', 'mask': 'sub-anon/0040/lesion0006.png' },
+      { 'base': 'sub-anon/0040/montage0007.png', 'mask': 'sub-anon/0040/lesion0007.png' },
+      { 'base': 'sub-anon/0040/montage0008.png', 'mask': 'sub-anon/0040/lesion0008.png' },
+    ]},
+  '41': {
+    'name': '0041',
+    'images': [
+      { 'base': 'sub-anon/0041/montage0000.png', 'mask': 'sub-anon/0041/lesion0000.png' },
+      { 'base': 'sub-anon/0041/montage0001.png', 'mask': 'sub-anon/0041/lesion0001.png' },
+      { 'base': 'sub-anon/0041/montage0002.png', 'mask': 'sub-anon/0041/lesion0002.png' },
+      { 'base': 'sub-anon/0041/montage0003.png', 'mask': 'sub-anon/0041/lesion0003.png' },
+      { 'base': 'sub-anon/0041/montage0004.png', 'mask': 'sub-anon/0041/lesion0004.png' },
+      { 'base': 'sub-anon/0041/montage0005.png', 'mask': 'sub-anon/0041/lesion0005.png' },
+      { 'base': 'sub-anon/0041/montage0006.png', 'mask': 'sub-anon/0041/lesion0006.png' },
+      { 'base': 'sub-anon/0041/montage0007.png', 'mask': 'sub-anon/0041/lesion0007.png' },
+      { 'base': 'sub-anon/0041/montage0008.png', 'mask': 'sub-anon/0041/lesion0008.png' },
+      { 'base': 'sub-anon/0041/montage0009.png', 'mask': 'sub-anon/0041/lesion0009.png' },
+    ]},
+  '42': {
+    'name': '0042',
+    'images': [
+      { 'base': 'sub-anon/0042/montage0000.png', 'mask': 'sub-anon/0042/lesion0000.png' },
+      { 'base': 'sub-anon/0042/montage0001.png', 'mask': 'sub-anon/0042/lesion0001.png' },
+      { 'base': 'sub-anon/0042/montage0002.png', 'mask': 'sub-anon/0042/lesion0002.png' },
+      { 'base': 'sub-anon/0042/montage0003.png', 'mask': 'sub-anon/0042/lesion0003.png' },
+      { 'base': 'sub-anon/0042/montage0004.png', 'mask': 'sub-anon/0042/lesion0004.png' },
+      { 'base': 'sub-anon/0042/montage0005.png', 'mask': 'sub-anon/0042/lesion0005.png' },
+      { 'base': 'sub-anon/0042/montage0006.png', 'mask': 'sub-anon/0042/lesion0006.png' },
+      { 'base': 'sub-anon/0042/montage0007.png', 'mask': 'sub-anon/0042/lesion0007.png' },
+      { 'base': 'sub-anon/0042/montage0008.png', 'mask': 'sub-anon/0042/lesion0008.png' },
+      { 'base': 'sub-anon/0042/montage0009.png', 'mask': 'sub-anon/0042/lesion0009.png' },
+    ]},
+  '43': {
+    'name': '0043',
+    'images': [
+      { 'base': 'sub-anon/0043/montage0000.png', 'mask': 'sub-anon/0043/lesion0000.png' },
+      { 'base': 'sub-anon/0043/montage0001.png', 'mask': 'sub-anon/0043/lesion0001.png' },
+      { 'base': 'sub-anon/0043/montage0002.png', 'mask': 'sub-anon/0043/lesion0002.png' },
+      { 'base': 'sub-anon/0043/montage0003.png', 'mask': 'sub-anon/0043/lesion0003.png' },
+      { 'base': 'sub-anon/0043/montage0004.png', 'mask': 'sub-anon/0043/lesion0004.png' },
+      { 'base': 'sub-anon/0043/montage0005.png', 'mask': 'sub-anon/0043/lesion0005.png' },
+      { 'base': 'sub-anon/0043/montage0006.png', 'mask': 'sub-anon/0043/lesion0006.png' },
+      { 'base': 'sub-anon/0043/montage0007.png', 'mask': 'sub-anon/0043/lesion0007.png' },
+    ]},
+  '44': {
+    'name': '0044',
+    'images': [
+      { 'base': 'sub-anon/0044/montage0000.png', 'mask': 'sub-anon/0044/lesion0000.png' },
+      { 'base': 'sub-anon/0044/montage0001.png', 'mask': 'sub-anon/0044/lesion0001.png' },
+      { 'base': 'sub-anon/0044/montage0002.png', 'mask': 'sub-anon/0044/lesion0002.png' },
+      { 'base': 'sub-anon/0044/montage0003.png', 'mask': 'sub-anon/0044/lesion0003.png' },
+      { 'base': 'sub-anon/0044/montage0004.png', 'mask': 'sub-anon/0044/lesion0004.png' },
+      { 'base': 'sub-anon/0044/montage0005.png', 'mask': 'sub-anon/0044/lesion0005.png' },
+      { 'base': 'sub-anon/0044/montage0006.png', 'mask': 'sub-anon/0044/lesion0006.png' },
+      { 'base': 'sub-anon/0044/montage0007.png', 'mask': 'sub-anon/0044/lesion0007.png' },
+      { 'base': 'sub-anon/0044/montage0008.png', 'mask': 'sub-anon/0044/lesion0008.png' },
+    ]},
+  '45': {
+    'name': '0045',
+    'images': [
+      { 'base': 'sub-anon/0045/montage0000.png', 'mask': 'sub-anon/0045/lesion0000.png' },
+      { 'base': 'sub-anon/0045/montage0001.png', 'mask': 'sub-anon/0045/lesion0001.png' },
+      { 'base': 'sub-anon/0045/montage0002.png', 'mask': 'sub-anon/0045/lesion0002.png' },
+      { 'base': 'sub-anon/0045/montage0003.png', 'mask': 'sub-anon/0045/lesion0003.png' },
+      { 'base': 'sub-anon/0045/montage0004.png', 'mask': 'sub-anon/0045/lesion0004.png' },
+      { 'base': 'sub-anon/0045/montage0005.png', 'mask': 'sub-anon/0045/lesion0005.png' },
+      { 'base': 'sub-anon/0045/montage0006.png', 'mask': 'sub-anon/0045/lesion0006.png' },
+      { 'base': 'sub-anon/0045/montage0007.png', 'mask': 'sub-anon/0045/lesion0007.png' },
+      { 'base': 'sub-anon/0045/montage0008.png', 'mask': 'sub-anon/0045/lesion0008.png' },
+      { 'base': 'sub-anon/0045/montage0009.png', 'mask': 'sub-anon/0045/lesion0009.png' },
+      { 'base': 'sub-anon/0045/montage0010.png', 'mask': 'sub-anon/0045/lesion0010.png' },
+      { 'base': 'sub-anon/0045/montage0011.png', 'mask': 'sub-anon/0045/lesion0011.png' },
+      { 'base': 'sub-anon/0045/montage0012.png', 'mask': 'sub-anon/0045/lesion0012.png' },
+      { 'base': 'sub-anon/0045/montage0013.png', 'mask': 'sub-anon/0045/lesion0013.png' },
+    ]},
+  '46': {
+    'name': '0046',
+    'images': [
+      { 'base': 'sub-anon/0046/montage0000.png', 'mask': 'sub-anon/0046/lesion0000.png' },
+      { 'base': 'sub-anon/0046/montage0001.png', 'mask': 'sub-anon/0046/lesion0001.png' },
+      { 'base': 'sub-anon/0046/montage0002.png', 'mask': 'sub-anon/0046/lesion0002.png' },
+      { 'base': 'sub-anon/0046/montage0003.png', 'mask': 'sub-anon/0046/lesion0003.png' },
+      { 'base': 'sub-anon/0046/montage0004.png', 'mask': 'sub-anon/0046/lesion0004.png' },
+      { 'base': 'sub-anon/0046/montage0005.png', 'mask': 'sub-anon/0046/lesion0005.png' },
+      { 'base': 'sub-anon/0046/montage0006.png', 'mask': 'sub-anon/0046/lesion0006.png' },
+      { 'base': 'sub-anon/0046/montage0007.png', 'mask': 'sub-anon/0046/lesion0007.png' },
+      { 'base': 'sub-anon/0046/montage0008.png', 'mask': 'sub-anon/0046/lesion0008.png' },
+      { 'base': 'sub-anon/0046/montage0009.png', 'mask': 'sub-anon/0046/lesion0009.png' },
+      { 'base': 'sub-anon/0046/montage0010.png', 'mask': 'sub-anon/0046/lesion0010.png' },
+      { 'base': 'sub-anon/0046/montage0011.png', 'mask': 'sub-anon/0046/lesion0011.png' },
+      { 'base': 'sub-anon/0046/montage0012.png', 'mask': 'sub-anon/0046/lesion0012.png' },
+      { 'base': 'sub-anon/0046/montage0013.png', 'mask': 'sub-anon/0046/lesion0013.png' },
+      { 'base': 'sub-anon/0046/montage0014.png', 'mask': 'sub-anon/0046/lesion0014.png' },
+      { 'base': 'sub-anon/0046/montage0015.png', 'mask': 'sub-anon/0046/lesion0015.png' },
+    ]},
+  '47': {
+    'name': '0047',
+    'images': [
+      { 'base': 'sub-anon/0047/montage0000.png', 'mask': 'sub-anon/0047/lesion0000.png' },
+      { 'base': 'sub-anon/0047/montage0001.png', 'mask': 'sub-anon/0047/lesion0001.png' },
+      { 'base': 'sub-anon/0047/montage0002.png', 'mask': 'sub-anon/0047/lesion0002.png' },
+      { 'base': 'sub-anon/0047/montage0003.png', 'mask': 'sub-anon/0047/lesion0003.png' },
+      { 'base': 'sub-anon/0047/montage0004.png', 'mask': 'sub-anon/0047/lesion0004.png' },
+      { 'base': 'sub-anon/0047/montage0005.png', 'mask': 'sub-anon/0047/lesion0005.png' },
+      { 'base': 'sub-anon/0047/montage0006.png', 'mask': 'sub-anon/0047/lesion0006.png' },
+      { 'base': 'sub-anon/0047/montage0007.png', 'mask': 'sub-anon/0047/lesion0007.png' },
+      { 'base': 'sub-anon/0047/montage0008.png', 'mask': 'sub-anon/0047/lesion0008.png' },
+      { 'base': 'sub-anon/0047/montage0009.png', 'mask': 'sub-anon/0047/lesion0009.png' },
+      { 'base': 'sub-anon/0047/montage0010.png', 'mask': 'sub-anon/0047/lesion0010.png' },
+      { 'base': 'sub-anon/0047/montage0011.png', 'mask': 'sub-anon/0047/lesion0011.png' },
+      { 'base': 'sub-anon/0047/montage0012.png', 'mask': 'sub-anon/0047/lesion0012.png' },
+      { 'base': 'sub-anon/0047/montage0013.png', 'mask': 'sub-anon/0047/lesion0013.png' },
+      { 'base': 'sub-anon/0047/montage0014.png', 'mask': 'sub-anon/0047/lesion0014.png' },
+    ]},
+  '48': {
+    'name': '0048',
+    'images': [
+      { 'base': 'sub-anon/0048/montage0000.png', 'mask': 'sub-anon/0048/lesion0000.png' },
+      { 'base': 'sub-anon/0048/montage0001.png', 'mask': 'sub-anon/0048/lesion0001.png' },
+      { 'base': 'sub-anon/0048/montage0002.png', 'mask': 'sub-anon/0048/lesion0002.png' },
+      { 'base': 'sub-anon/0048/montage0003.png', 'mask': 'sub-anon/0048/lesion0003.png' },
+      { 'base': 'sub-anon/0048/montage0004.png', 'mask': 'sub-anon/0048/lesion0004.png' },
+      { 'base': 'sub-anon/0048/montage0005.png', 'mask': 'sub-anon/0048/lesion0005.png' },
+      { 'base': 'sub-anon/0048/montage0006.png', 'mask': 'sub-anon/0048/lesion0006.png' },
+      { 'base': 'sub-anon/0048/montage0007.png', 'mask': 'sub-anon/0048/lesion0007.png' },
+      { 'base': 'sub-anon/0048/montage0008.png', 'mask': 'sub-anon/0048/lesion0008.png' },
+      { 'base': 'sub-anon/0048/montage0009.png', 'mask': 'sub-anon/0048/lesion0009.png' },
+      { 'base': 'sub-anon/0048/montage0010.png', 'mask': 'sub-anon/0048/lesion0010.png' },
+    ]},
+  '49': {
+    'name': '0049',
+    'images': [
+      { 'base': 'sub-anon/0049/montage0000.png', 'mask': 'sub-anon/0049/lesion0000.png' },
+      { 'base': 'sub-anon/0049/montage0001.png', 'mask': 'sub-anon/0049/lesion0001.png' },
+      { 'base': 'sub-anon/0049/montage0002.png', 'mask': 'sub-anon/0049/lesion0002.png' },
+      { 'base': 'sub-anon/0049/montage0003.png', 'mask': 'sub-anon/0049/lesion0003.png' },
+      { 'base': 'sub-anon/0049/montage0004.png', 'mask': 'sub-anon/0049/lesion0004.png' },
+      { 'base': 'sub-anon/0049/montage0005.png', 'mask': 'sub-anon/0049/lesion0005.png' },
+      { 'base': 'sub-anon/0049/montage0006.png', 'mask': 'sub-anon/0049/lesion0006.png' },
+      { 'base': 'sub-anon/0049/montage0007.png', 'mask': 'sub-anon/0049/lesion0007.png' },
+      { 'base': 'sub-anon/0049/montage0008.png', 'mask': 'sub-anon/0049/lesion0008.png' },
+      { 'base': 'sub-anon/0049/montage0009.png', 'mask': 'sub-anon/0049/lesion0009.png' },
+      { 'base': 'sub-anon/0049/montage0010.png', 'mask': 'sub-anon/0049/lesion0010.png' },
+      { 'base': 'sub-anon/0049/montage0011.png', 'mask': 'sub-anon/0049/lesion0011.png' },
+    ]},
+  '50': {
+    'name': '0050',
+    'images': [
+      { 'base': 'sub-anon/0050/montage0000.png', 'mask': 'sub-anon/0050/lesion0000.png' },
+      { 'base': 'sub-anon/0050/montage0001.png', 'mask': 'sub-anon/0050/lesion0001.png' },
+      { 'base': 'sub-anon/0050/montage0002.png', 'mask': 'sub-anon/0050/lesion0002.png' },
+      { 'base': 'sub-anon/0050/montage0003.png', 'mask': 'sub-anon/0050/lesion0003.png' },
+      { 'base': 'sub-anon/0050/montage0004.png', 'mask': 'sub-anon/0050/lesion0004.png' },
+      { 'base': 'sub-anon/0050/montage0005.png', 'mask': 'sub-anon/0050/lesion0005.png' },
+      { 'base': 'sub-anon/0050/montage0006.png', 'mask': 'sub-anon/0050/lesion0006.png' },
+      { 'base': 'sub-anon/0050/montage0007.png', 'mask': 'sub-anon/0050/lesion0007.png' },
+      { 'base': 'sub-anon/0050/montage0008.png', 'mask': 'sub-anon/0050/lesion0008.png' },
+      { 'base': 'sub-anon/0050/montage0009.png', 'mask': 'sub-anon/0050/lesion0009.png' },
+      { 'base': 'sub-anon/0050/montage0010.png', 'mask': 'sub-anon/0050/lesion0010.png' },
+      { 'base': 'sub-anon/0050/montage0011.png', 'mask': 'sub-anon/0050/lesion0011.png' },
+      { 'base': 'sub-anon/0050/montage0012.png', 'mask': 'sub-anon/0050/lesion0012.png' },
+    ]},
+  '51': {
+    'name': '0051',
+    'images': [
+      { 'base': 'sub-anon/0051/montage0000.png', 'mask': 'sub-anon/0051/lesion0000.png' },
+      { 'base': 'sub-anon/0051/montage0001.png', 'mask': 'sub-anon/0051/lesion0001.png' },
+      { 'base': 'sub-anon/0051/montage0002.png', 'mask': 'sub-anon/0051/lesion0002.png' },
+      { 'base': 'sub-anon/0051/montage0003.png', 'mask': 'sub-anon/0051/lesion0003.png' },
+      { 'base': 'sub-anon/0051/montage0004.png', 'mask': 'sub-anon/0051/lesion0004.png' },
+      { 'base': 'sub-anon/0051/montage0005.png', 'mask': 'sub-anon/0051/lesion0005.png' },
+      { 'base': 'sub-anon/0051/montage0006.png', 'mask': 'sub-anon/0051/lesion0006.png' },
+      { 'base': 'sub-anon/0051/montage0007.png', 'mask': 'sub-anon/0051/lesion0007.png' },
+      { 'base': 'sub-anon/0051/montage0008.png', 'mask': 'sub-anon/0051/lesion0008.png' },
+    ]},
+  '52': {
+    'name': '0052',
+    'images': [
+      { 'base': 'sub-anon/0052/montage0000.png', 'mask': 'sub-anon/0052/lesion0000.png' },
+      { 'base': 'sub-anon/0052/montage0001.png', 'mask': 'sub-anon/0052/lesion0001.png' },
+      { 'base': 'sub-anon/0052/montage0002.png', 'mask': 'sub-anon/0052/lesion0002.png' },
+      { 'base': 'sub-anon/0052/montage0003.png', 'mask': 'sub-anon/0052/lesion0003.png' },
+      { 'base': 'sub-anon/0052/montage0004.png', 'mask': 'sub-anon/0052/lesion0004.png' },
+      { 'base': 'sub-anon/0052/montage0005.png', 'mask': 'sub-anon/0052/lesion0005.png' },
+      { 'base': 'sub-anon/0052/montage0006.png', 'mask': 'sub-anon/0052/lesion0006.png' },
+      { 'base': 'sub-anon/0052/montage0007.png', 'mask': 'sub-anon/0052/lesion0007.png' },
+      { 'base': 'sub-anon/0052/montage0008.png', 'mask': 'sub-anon/0052/lesion0008.png' },
+      { 'base': 'sub-anon/0052/montage0009.png', 'mask': 'sub-anon/0052/lesion0009.png' },
+      { 'base': 'sub-anon/0052/montage0010.png', 'mask': 'sub-anon/0052/lesion0010.png' },
+      { 'base': 'sub-anon/0052/montage0011.png', 'mask': 'sub-anon/0052/lesion0011.png' },
+      { 'base': 'sub-anon/0052/montage0012.png', 'mask': 'sub-anon/0052/lesion0012.png' },
+    ]},
+  '53': {
+    'name': '0053',
+    'images': [
+      { 'base': 'sub-anon/0053/montage0000.png', 'mask': 'sub-anon/0053/lesion0000.png' },
+      { 'base': 'sub-anon/0053/montage0001.png', 'mask': 'sub-anon/0053/lesion0001.png' },
+      { 'base': 'sub-anon/0053/montage0002.png', 'mask': 'sub-anon/0053/lesion0002.png' },
+      { 'base': 'sub-anon/0053/montage0003.png', 'mask': 'sub-anon/0053/lesion0003.png' },
+      { 'base': 'sub-anon/0053/montage0004.png', 'mask': 'sub-anon/0053/lesion0004.png' },
+      { 'base': 'sub-anon/0053/montage0005.png', 'mask': 'sub-anon/0053/lesion0005.png' },
+      { 'base': 'sub-anon/0053/montage0006.png', 'mask': 'sub-anon/0053/lesion0006.png' },
+      { 'base': 'sub-anon/0053/montage0007.png', 'mask': 'sub-anon/0053/lesion0007.png' },
+      { 'base': 'sub-anon/0053/montage0008.png', 'mask': 'sub-anon/0053/lesion0008.png' },
+      { 'base': 'sub-anon/0053/montage0009.png', 'mask': 'sub-anon/0053/lesion0009.png' },
+      { 'base': 'sub-anon/0053/montage0010.png', 'mask': 'sub-anon/0053/lesion0010.png' },
+      { 'base': 'sub-anon/0053/montage0011.png', 'mask': 'sub-anon/0053/lesion0011.png' },
+    ]},
+  '54': {
+    'name': '0054',
+    'images': [
+      { 'base': 'sub-anon/0054/montage0000.png', 'mask': 'sub-anon/0054/lesion0000.png' },
+      { 'base': 'sub-anon/0054/montage0001.png', 'mask': 'sub-anon/0054/lesion0001.png' },
+      { 'base': 'sub-anon/0054/montage0002.png', 'mask': 'sub-anon/0054/lesion0002.png' },
+      { 'base': 'sub-anon/0054/montage0003.png', 'mask': 'sub-anon/0054/lesion0003.png' },
+      { 'base': 'sub-anon/0054/montage0004.png', 'mask': 'sub-anon/0054/lesion0004.png' },
+      { 'base': 'sub-anon/0054/montage0005.png', 'mask': 'sub-anon/0054/lesion0005.png' },
+      { 'base': 'sub-anon/0054/montage0006.png', 'mask': 'sub-anon/0054/lesion0006.png' },
+      { 'base': 'sub-anon/0054/montage0007.png', 'mask': 'sub-anon/0054/lesion0007.png' },
+      { 'base': 'sub-anon/0054/montage0008.png', 'mask': 'sub-anon/0054/lesion0008.png' },
+      { 'base': 'sub-anon/0054/montage0009.png', 'mask': 'sub-anon/0054/lesion0009.png' },
+      { 'base': 'sub-anon/0054/montage0010.png', 'mask': 'sub-anon/0054/lesion0010.png' },
+    ]},
+  '55': {
+    'name': '0055',
+    'images': [
+      { 'base': 'sub-anon/0055/montage0000.png', 'mask': 'sub-anon/0055/lesion0000.png' },
+      { 'base': 'sub-anon/0055/montage0001.png', 'mask': 'sub-anon/0055/lesion0001.png' },
+      { 'base': 'sub-anon/0055/montage0002.png', 'mask': 'sub-anon/0055/lesion0002.png' },
+      { 'base': 'sub-anon/0055/montage0003.png', 'mask': 'sub-anon/0055/lesion0003.png' },
+      { 'base': 'sub-anon/0055/montage0004.png', 'mask': 'sub-anon/0055/lesion0004.png' },
+      { 'base': 'sub-anon/0055/montage0005.png', 'mask': 'sub-anon/0055/lesion0005.png' },
+      { 'base': 'sub-anon/0055/montage0006.png', 'mask': 'sub-anon/0055/lesion0006.png' },
+      { 'base': 'sub-anon/0055/montage0007.png', 'mask': 'sub-anon/0055/lesion0007.png' },
+      { 'base': 'sub-anon/0055/montage0008.png', 'mask': 'sub-anon/0055/lesion0008.png' },
+      { 'base': 'sub-anon/0055/montage0009.png', 'mask': 'sub-anon/0055/lesion0009.png' },
+      { 'base': 'sub-anon/0055/montage0010.png', 'mask': 'sub-anon/0055/lesion0010.png' },
+    ]},
+  '56': {
+    'name': '0056',
+    'images': [
+      { 'base': 'sub-anon/0056/montage0000.png', 'mask': 'sub-anon/0056/lesion0000.png' },
+      { 'base': 'sub-anon/0056/montage0001.png', 'mask': 'sub-anon/0056/lesion0001.png' },
+      { 'base': 'sub-anon/0056/montage0002.png', 'mask': 'sub-anon/0056/lesion0002.png' },
+      { 'base': 'sub-anon/0056/montage0003.png', 'mask': 'sub-anon/0056/lesion0003.png' },
+      { 'base': 'sub-anon/0056/montage0004.png', 'mask': 'sub-anon/0056/lesion0004.png' },
+      { 'base': 'sub-anon/0056/montage0005.png', 'mask': 'sub-anon/0056/lesion0005.png' },
+      { 'base': 'sub-anon/0056/montage0006.png', 'mask': 'sub-anon/0056/lesion0006.png' },
+      { 'base': 'sub-anon/0056/montage0007.png', 'mask': 'sub-anon/0056/lesion0007.png' },
+      { 'base': 'sub-anon/0056/montage0008.png', 'mask': 'sub-anon/0056/lesion0008.png' },
+      { 'base': 'sub-anon/0056/montage0009.png', 'mask': 'sub-anon/0056/lesion0009.png' },
+      { 'base': 'sub-anon/0056/montage0010.png', 'mask': 'sub-anon/0056/lesion0010.png' },
+      { 'base': 'sub-anon/0056/montage0011.png', 'mask': 'sub-anon/0056/lesion0011.png' },
+      { 'base': 'sub-anon/0056/montage0012.png', 'mask': 'sub-anon/0056/lesion0012.png' },
+    ]},
+  '57': {
+    'name': '0057',
+    'images': [
+      { 'base': 'sub-anon/0057/montage0000.png', 'mask': 'sub-anon/0057/lesion0000.png' },
+      { 'base': 'sub-anon/0057/montage0001.png', 'mask': 'sub-anon/0057/lesion0001.png' },
+      { 'base': 'sub-anon/0057/montage0002.png', 'mask': 'sub-anon/0057/lesion0002.png' },
+      { 'base': 'sub-anon/0057/montage0003.png', 'mask': 'sub-anon/0057/lesion0003.png' },
+      { 'base': 'sub-anon/0057/montage0004.png', 'mask': 'sub-anon/0057/lesion0004.png' },
+      { 'base': 'sub-anon/0057/montage0005.png', 'mask': 'sub-anon/0057/lesion0005.png' },
+      { 'base': 'sub-anon/0057/montage0006.png', 'mask': 'sub-anon/0057/lesion0006.png' },
+      { 'base': 'sub-anon/0057/montage0007.png', 'mask': 'sub-anon/0057/lesion0007.png' },
+      { 'base': 'sub-anon/0057/montage0008.png', 'mask': 'sub-anon/0057/lesion0008.png' },
+      { 'base': 'sub-anon/0057/montage0009.png', 'mask': 'sub-anon/0057/lesion0009.png' },
+      { 'base': 'sub-anon/0057/montage0010.png', 'mask': 'sub-anon/0057/lesion0010.png' },
+    ]},
+  '58': {
+    'name': '0058',
+    'images': [
+      { 'base': 'sub-anon/0058/montage0000.png', 'mask': 'sub-anon/0058/lesion0000.png' },
+      { 'base': 'sub-anon/0058/montage0001.png', 'mask': 'sub-anon/0058/lesion0001.png' },
+      { 'base': 'sub-anon/0058/montage0002.png', 'mask': 'sub-anon/0058/lesion0002.png' },
+      { 'base': 'sub-anon/0058/montage0003.png', 'mask': 'sub-anon/0058/lesion0003.png' },
+      { 'base': 'sub-anon/0058/montage0004.png', 'mask': 'sub-anon/0058/lesion0004.png' },
+      { 'base': 'sub-anon/0058/montage0005.png', 'mask': 'sub-anon/0058/lesion0005.png' },
+      { 'base': 'sub-anon/0058/montage0006.png', 'mask': 'sub-anon/0058/lesion0006.png' },
+      { 'base': 'sub-anon/0058/montage0007.png', 'mask': 'sub-anon/0058/lesion0007.png' },
+      { 'base': 'sub-anon/0058/montage0008.png', 'mask': 'sub-anon/0058/lesion0008.png' },
+      { 'base': 'sub-anon/0058/montage0009.png', 'mask': 'sub-anon/0058/lesion0009.png' },
+      { 'base': 'sub-anon/0058/montage0010.png', 'mask': 'sub-anon/0058/lesion0010.png' },
+      { 'base': 'sub-anon/0058/montage0011.png', 'mask': 'sub-anon/0058/lesion0011.png' },
+      { 'base': 'sub-anon/0058/montage0012.png', 'mask': 'sub-anon/0058/lesion0012.png' },
+    ]},
+  '59': {
+    'name': '0059',
+    'images': [
+      { 'base': 'sub-anon/0059/montage0000.png', 'mask': 'sub-anon/0059/lesion0000.png' },
+      { 'base': 'sub-anon/0059/montage0001.png', 'mask': 'sub-anon/0059/lesion0001.png' },
+      { 'base': 'sub-anon/0059/montage0002.png', 'mask': 'sub-anon/0059/lesion0002.png' },
+      { 'base': 'sub-anon/0059/montage0003.png', 'mask': 'sub-anon/0059/lesion0003.png' },
+      { 'base': 'sub-anon/0059/montage0004.png', 'mask': 'sub-anon/0059/lesion0004.png' },
+      { 'base': 'sub-anon/0059/montage0005.png', 'mask': 'sub-anon/0059/lesion0005.png' },
+      { 'base': 'sub-anon/0059/montage0006.png', 'mask': 'sub-anon/0059/lesion0006.png' },
+      { 'base': 'sub-anon/0059/montage0007.png', 'mask': 'sub-anon/0059/lesion0007.png' },
+      { 'base': 'sub-anon/0059/montage0008.png', 'mask': 'sub-anon/0059/lesion0008.png' },
+      { 'base': 'sub-anon/0059/montage0009.png', 'mask': 'sub-anon/0059/lesion0009.png' },
+    ]},
+  '60': {
+    'name': '0060',
+    'images': [
+      { 'base': 'sub-anon/0060/montage0000.png', 'mask': 'sub-anon/0060/lesion0000.png' },
+      { 'base': 'sub-anon/0060/montage0001.png', 'mask': 'sub-anon/0060/lesion0001.png' },
+      { 'base': 'sub-anon/0060/montage0002.png', 'mask': 'sub-anon/0060/lesion0002.png' },
+      { 'base': 'sub-anon/0060/montage0003.png', 'mask': 'sub-anon/0060/lesion0003.png' },
+      { 'base': 'sub-anon/0060/montage0004.png', 'mask': 'sub-anon/0060/lesion0004.png' },
+      { 'base': 'sub-anon/0060/montage0005.png', 'mask': 'sub-anon/0060/lesion0005.png' },
+      { 'base': 'sub-anon/0060/montage0006.png', 'mask': 'sub-anon/0060/lesion0006.png' },
+      { 'base': 'sub-anon/0060/montage0007.png', 'mask': 'sub-anon/0060/lesion0007.png' },
+      { 'base': 'sub-anon/0060/montage0008.png', 'mask': 'sub-anon/0060/lesion0008.png' },
+    ]},
+  '61': {
+    'name': '0061',
+    'images': [
+      { 'base': 'sub-anon/0061/montage0000.png', 'mask': 'sub-anon/0061/lesion0000.png' },
+      { 'base': 'sub-anon/0061/montage0001.png', 'mask': 'sub-anon/0061/lesion0001.png' },
+      { 'base': 'sub-anon/0061/montage0002.png', 'mask': 'sub-anon/0061/lesion0002.png' },
+      { 'base': 'sub-anon/0061/montage0003.png', 'mask': 'sub-anon/0061/lesion0003.png' },
+      { 'base': 'sub-anon/0061/montage0004.png', 'mask': 'sub-anon/0061/lesion0004.png' },
+      { 'base': 'sub-anon/0061/montage0005.png', 'mask': 'sub-anon/0061/lesion0005.png' },
+      { 'base': 'sub-anon/0061/montage0006.png', 'mask': 'sub-anon/0061/lesion0006.png' },
+      { 'base': 'sub-anon/0061/montage0007.png', 'mask': 'sub-anon/0061/lesion0007.png' },
+      { 'base': 'sub-anon/0061/montage0008.png', 'mask': 'sub-anon/0061/lesion0008.png' },
+    ]},
+  '62': {
+    'name': '0062',
+    'images': [
+      { 'base': 'sub-anon/0062/montage0000.png', 'mask': 'sub-anon/0062/lesion0000.png' },
+      { 'base': 'sub-anon/0062/montage0001.png', 'mask': 'sub-anon/0062/lesion0001.png' },
+      { 'base': 'sub-anon/0062/montage0002.png', 'mask': 'sub-anon/0062/lesion0002.png' },
+      { 'base': 'sub-anon/0062/montage0003.png', 'mask': 'sub-anon/0062/lesion0003.png' },
+      { 'base': 'sub-anon/0062/montage0004.png', 'mask': 'sub-anon/0062/lesion0004.png' },
+      { 'base': 'sub-anon/0062/montage0005.png', 'mask': 'sub-anon/0062/lesion0005.png' },
+      { 'base': 'sub-anon/0062/montage0006.png', 'mask': 'sub-anon/0062/lesion0006.png' },
+      { 'base': 'sub-anon/0062/montage0007.png', 'mask': 'sub-anon/0062/lesion0007.png' },
+    ]},
+  '63': {
+    'name': '0063',
+    'images': [
+      { 'base': 'sub-anon/0063/montage0000.png', 'mask': 'sub-anon/0063/lesion0000.png' },
+      { 'base': 'sub-anon/0063/montage0001.png', 'mask': 'sub-anon/0063/lesion0001.png' },
+      { 'base': 'sub-anon/0063/montage0002.png', 'mask': 'sub-anon/0063/lesion0002.png' },
+      { 'base': 'sub-anon/0063/montage0003.png', 'mask': 'sub-anon/0063/lesion0003.png' },
+      { 'base': 'sub-anon/0063/montage0004.png', 'mask': 'sub-anon/0063/lesion0004.png' },
+      { 'base': 'sub-anon/0063/montage0005.png', 'mask': 'sub-anon/0063/lesion0005.png' },
+      { 'base': 'sub-anon/0063/montage0006.png', 'mask': 'sub-anon/0063/lesion0006.png' },
+      { 'base': 'sub-anon/0063/montage0007.png', 'mask': 'sub-anon/0063/lesion0007.png' },
+      { 'base': 'sub-anon/0063/montage0008.png', 'mask': 'sub-anon/0063/lesion0008.png' },
+      { 'base': 'sub-anon/0063/montage0009.png', 'mask': 'sub-anon/0063/lesion0009.png' },
+      { 'base': 'sub-anon/0063/montage0010.png', 'mask': 'sub-anon/0063/lesion0010.png' },
+      { 'base': 'sub-anon/0063/montage0011.png', 'mask': 'sub-anon/0063/lesion0011.png' },
+      { 'base': 'sub-anon/0063/montage0012.png', 'mask': 'sub-anon/0063/lesion0012.png' },
+      { 'base': 'sub-anon/0063/montage0013.png', 'mask': 'sub-anon/0063/lesion0013.png' },
+      { 'base': 'sub-anon/0063/montage0014.png', 'mask': 'sub-anon/0063/lesion0014.png' },
+      { 'base': 'sub-anon/0063/montage0015.png', 'mask': 'sub-anon/0063/lesion0015.png' },
+      { 'base': 'sub-anon/0063/montage0016.png', 'mask': 'sub-anon/0063/lesion0016.png' },
+      { 'base': 'sub-anon/0063/montage0017.png', 'mask': 'sub-anon/0063/lesion0017.png' },
+      { 'base': 'sub-anon/0063/montage0018.png', 'mask': 'sub-anon/0063/lesion0018.png' },
+    ]},
+  '64': {
+    'name': '0064',
+    'images': [
+      { 'base': 'sub-anon/0064/montage0000.png', 'mask': 'sub-anon/0064/lesion0000.png' },
+      { 'base': 'sub-anon/0064/montage0001.png', 'mask': 'sub-anon/0064/lesion0001.png' },
+      { 'base': 'sub-anon/0064/montage0002.png', 'mask': 'sub-anon/0064/lesion0002.png' },
+      { 'base': 'sub-anon/0064/montage0003.png', 'mask': 'sub-anon/0064/lesion0003.png' },
+      { 'base': 'sub-anon/0064/montage0004.png', 'mask': 'sub-anon/0064/lesion0004.png' },
+      { 'base': 'sub-anon/0064/montage0005.png', 'mask': 'sub-anon/0064/lesion0005.png' },
+      { 'base': 'sub-anon/0064/montage0006.png', 'mask': 'sub-anon/0064/lesion0006.png' },
+      { 'base': 'sub-anon/0064/montage0007.png', 'mask': 'sub-anon/0064/lesion0007.png' },
+      { 'base': 'sub-anon/0064/montage0008.png', 'mask': 'sub-anon/0064/lesion0008.png' },
+      { 'base': 'sub-anon/0064/montage0009.png', 'mask': 'sub-anon/0064/lesion0009.png' },
+      { 'base': 'sub-anon/0064/montage0010.png', 'mask': 'sub-anon/0064/lesion0010.png' },
+    ]},
+  '65': {
+    'name': '0065',
+    'images': [
+      { 'base': 'sub-anon/0065/montage0000.png', 'mask': 'sub-anon/0065/lesion0000.png' },
+      { 'base': 'sub-anon/0065/montage0001.png', 'mask': 'sub-anon/0065/lesion0001.png' },
+      { 'base': 'sub-anon/0065/montage0002.png', 'mask': 'sub-anon/0065/lesion0002.png' },
+      { 'base': 'sub-anon/0065/montage0003.png', 'mask': 'sub-anon/0065/lesion0003.png' },
+      { 'base': 'sub-anon/0065/montage0004.png', 'mask': 'sub-anon/0065/lesion0004.png' },
+      { 'base': 'sub-anon/0065/montage0005.png', 'mask': 'sub-anon/0065/lesion0005.png' },
+      { 'base': 'sub-anon/0065/montage0006.png', 'mask': 'sub-anon/0065/lesion0006.png' },
+      { 'base': 'sub-anon/0065/montage0007.png', 'mask': 'sub-anon/0065/lesion0007.png' },
+      { 'base': 'sub-anon/0065/montage0008.png', 'mask': 'sub-anon/0065/lesion0008.png' },
+      { 'base': 'sub-anon/0065/montage0009.png', 'mask': 'sub-anon/0065/lesion0009.png' },
+      { 'base': 'sub-anon/0065/montage0010.png', 'mask': 'sub-anon/0065/lesion0010.png' },
+      { 'base': 'sub-anon/0065/montage0011.png', 'mask': 'sub-anon/0065/lesion0011.png' },
+    ]},
+  '66': {
+    'name': '0066',
+    'images': [
+      { 'base': 'sub-anon/0066/montage0000.png', 'mask': 'sub-anon/0066/lesion0000.png' },
+      { 'base': 'sub-anon/0066/montage0001.png', 'mask': 'sub-anon/0066/lesion0001.png' },
+      { 'base': 'sub-anon/0066/montage0002.png', 'mask': 'sub-anon/0066/lesion0002.png' },
+      { 'base': 'sub-anon/0066/montage0003.png', 'mask': 'sub-anon/0066/lesion0003.png' },
+      { 'base': 'sub-anon/0066/montage0004.png', 'mask': 'sub-anon/0066/lesion0004.png' },
+      { 'base': 'sub-anon/0066/montage0005.png', 'mask': 'sub-anon/0066/lesion0005.png' },
+      { 'base': 'sub-anon/0066/montage0006.png', 'mask': 'sub-anon/0066/lesion0006.png' },
+      { 'base': 'sub-anon/0066/montage0007.png', 'mask': 'sub-anon/0066/lesion0007.png' },
+      { 'base': 'sub-anon/0066/montage0008.png', 'mask': 'sub-anon/0066/lesion0008.png' },
+    ]},
+  '67': {
+    'name': '0067',
+    'images': [
+      { 'base': 'sub-anon/0067/montage0000.png', 'mask': 'sub-anon/0067/lesion0000.png' },
+      { 'base': 'sub-anon/0067/montage0001.png', 'mask': 'sub-anon/0067/lesion0001.png' },
+      { 'base': 'sub-anon/0067/montage0002.png', 'mask': 'sub-anon/0067/lesion0002.png' },
+      { 'base': 'sub-anon/0067/montage0003.png', 'mask': 'sub-anon/0067/lesion0003.png' },
+      { 'base': 'sub-anon/0067/montage0004.png', 'mask': 'sub-anon/0067/lesion0004.png' },
+      { 'base': 'sub-anon/0067/montage0005.png', 'mask': 'sub-anon/0067/lesion0005.png' },
+      { 'base': 'sub-anon/0067/montage0006.png', 'mask': 'sub-anon/0067/lesion0006.png' },
+      { 'base': 'sub-anon/0067/montage0007.png', 'mask': 'sub-anon/0067/lesion0007.png' },
+      { 'base': 'sub-anon/0067/montage0008.png', 'mask': 'sub-anon/0067/lesion0008.png' },
+    ]},
+  '68': {
+    'name': '0068',
+    'images': [
+      { 'base': 'sub-anon/0068/montage0000.png', 'mask': 'sub-anon/0068/lesion0000.png' },
+      { 'base': 'sub-anon/0068/montage0001.png', 'mask': 'sub-anon/0068/lesion0001.png' },
+      { 'base': 'sub-anon/0068/montage0002.png', 'mask': 'sub-anon/0068/lesion0002.png' },
+      { 'base': 'sub-anon/0068/montage0003.png', 'mask': 'sub-anon/0068/lesion0003.png' },
+      { 'base': 'sub-anon/0068/montage0004.png', 'mask': 'sub-anon/0068/lesion0004.png' },
+      { 'base': 'sub-anon/0068/montage0005.png', 'mask': 'sub-anon/0068/lesion0005.png' },
+      { 'base': 'sub-anon/0068/montage0006.png', 'mask': 'sub-anon/0068/lesion0006.png' },
+      { 'base': 'sub-anon/0068/montage0007.png', 'mask': 'sub-anon/0068/lesion0007.png' },
+      { 'base': 'sub-anon/0068/montage0008.png', 'mask': 'sub-anon/0068/lesion0008.png' },
+    ]},
+  '69': {
+    'name': '0069',
+    'images': [
+      { 'base': 'sub-anon/0069/montage0000.png', 'mask': 'sub-anon/0069/lesion0000.png' },
+      { 'base': 'sub-anon/0069/montage0001.png', 'mask': 'sub-anon/0069/lesion0001.png' },
+      { 'base': 'sub-anon/0069/montage0002.png', 'mask': 'sub-anon/0069/lesion0002.png' },
+      { 'base': 'sub-anon/0069/montage0003.png', 'mask': 'sub-anon/0069/lesion0003.png' },
+      { 'base': 'sub-anon/0069/montage0004.png', 'mask': 'sub-anon/0069/lesion0004.png' },
+      { 'base': 'sub-anon/0069/montage0005.png', 'mask': 'sub-anon/0069/lesion0005.png' },
+      { 'base': 'sub-anon/0069/montage0006.png', 'mask': 'sub-anon/0069/lesion0006.png' },
+      { 'base': 'sub-anon/0069/montage0007.png', 'mask': 'sub-anon/0069/lesion0007.png' },
+      { 'base': 'sub-anon/0069/montage0008.png', 'mask': 'sub-anon/0069/lesion0008.png' },
+      { 'base': 'sub-anon/0069/montage0009.png', 'mask': 'sub-anon/0069/lesion0009.png' },
+      { 'base': 'sub-anon/0069/montage0010.png', 'mask': 'sub-anon/0069/lesion0010.png' },
+    ]},
+  '70': {
+    'name': '0070',
+    'images': [
+      { 'base': 'sub-anon/0070/montage0000.png', 'mask': 'sub-anon/0070/lesion0000.png' },
+      { 'base': 'sub-anon/0070/montage0001.png', 'mask': 'sub-anon/0070/lesion0001.png' },
+      { 'base': 'sub-anon/0070/montage0002.png', 'mask': 'sub-anon/0070/lesion0002.png' },
+      { 'base': 'sub-anon/0070/montage0003.png', 'mask': 'sub-anon/0070/lesion0003.png' },
+      { 'base': 'sub-anon/0070/montage0004.png', 'mask': 'sub-anon/0070/lesion0004.png' },
+      { 'base': 'sub-anon/0070/montage0005.png', 'mask': 'sub-anon/0070/lesion0005.png' },
+      { 'base': 'sub-anon/0070/montage0006.png', 'mask': 'sub-anon/0070/lesion0006.png' },
+      { 'base': 'sub-anon/0070/montage0007.png', 'mask': 'sub-anon/0070/lesion0007.png' },
+      { 'base': 'sub-anon/0070/montage0008.png', 'mask': 'sub-anon/0070/lesion0008.png' },
+      { 'base': 'sub-anon/0070/montage0009.png', 'mask': 'sub-anon/0070/lesion0009.png' },
+    ]},
+  '71': {
+    'name': '0071',
+    'images': [
+      { 'base': 'sub-anon/0071/montage0000.png', 'mask': 'sub-anon/0071/lesion0000.png' },
+      { 'base': 'sub-anon/0071/montage0001.png', 'mask': 'sub-anon/0071/lesion0001.png' },
+      { 'base': 'sub-anon/0071/montage0002.png', 'mask': 'sub-anon/0071/lesion0002.png' },
+      { 'base': 'sub-anon/0071/montage0003.png', 'mask': 'sub-anon/0071/lesion0003.png' },
+      { 'base': 'sub-anon/0071/montage0004.png', 'mask': 'sub-anon/0071/lesion0004.png' },
+      { 'base': 'sub-anon/0071/montage0005.png', 'mask': 'sub-anon/0071/lesion0005.png' },
+      { 'base': 'sub-anon/0071/montage0006.png', 'mask': 'sub-anon/0071/lesion0006.png' },
+      { 'base': 'sub-anon/0071/montage0007.png', 'mask': 'sub-anon/0071/lesion0007.png' },
+    ]},
+  '72': {
+    'name': '0072',
+    'images': [
+      { 'base': 'sub-anon/0072/montage0000.png', 'mask': 'sub-anon/0072/lesion0000.png' },
+      { 'base': 'sub-anon/0072/montage0001.png', 'mask': 'sub-anon/0072/lesion0001.png' },
+      { 'base': 'sub-anon/0072/montage0002.png', 'mask': 'sub-anon/0072/lesion0002.png' },
+      { 'base': 'sub-anon/0072/montage0003.png', 'mask': 'sub-anon/0072/lesion0003.png' },
+      { 'base': 'sub-anon/0072/montage0004.png', 'mask': 'sub-anon/0072/lesion0004.png' },
+      { 'base': 'sub-anon/0072/montage0005.png', 'mask': 'sub-anon/0072/lesion0005.png' },
+      { 'base': 'sub-anon/0072/montage0006.png', 'mask': 'sub-anon/0072/lesion0006.png' },
+      { 'base': 'sub-anon/0072/montage0007.png', 'mask': 'sub-anon/0072/lesion0007.png' },
+      { 'base': 'sub-anon/0072/montage0008.png', 'mask': 'sub-anon/0072/lesion0008.png' },
+    ]},
+  '73': {
+    'name': '0073',
+    'images': [
+      { 'base': 'sub-anon/0073/montage0000.png', 'mask': 'sub-anon/0073/lesion0000.png' },
+      { 'base': 'sub-anon/0073/montage0001.png', 'mask': 'sub-anon/0073/lesion0001.png' },
+      { 'base': 'sub-anon/0073/montage0002.png', 'mask': 'sub-anon/0073/lesion0002.png' },
+      { 'base': 'sub-anon/0073/montage0003.png', 'mask': 'sub-anon/0073/lesion0003.png' },
+      { 'base': 'sub-anon/0073/montage0004.png', 'mask': 'sub-anon/0073/lesion0004.png' },
+      { 'base': 'sub-anon/0073/montage0005.png', 'mask': 'sub-anon/0073/lesion0005.png' },
+      { 'base': 'sub-anon/0073/montage0006.png', 'mask': 'sub-anon/0073/lesion0006.png' },
+      { 'base': 'sub-anon/0073/montage0007.png', 'mask': 'sub-anon/0073/lesion0007.png' },
+      { 'base': 'sub-anon/0073/montage0008.png', 'mask': 'sub-anon/0073/lesion0008.png' },
+    ]},
+  '74': {
+    'name': '0074',
+    'images': [
+      { 'base': 'sub-anon/0074/montage0000.png', 'mask': 'sub-anon/0074/lesion0000.png' },
+      { 'base': 'sub-anon/0074/montage0001.png', 'mask': 'sub-anon/0074/lesion0001.png' },
+      { 'base': 'sub-anon/0074/montage0002.png', 'mask': 'sub-anon/0074/lesion0002.png' },
+      { 'base': 'sub-anon/0074/montage0003.png', 'mask': 'sub-anon/0074/lesion0003.png' },
+      { 'base': 'sub-anon/0074/montage0004.png', 'mask': 'sub-anon/0074/lesion0004.png' },
+      { 'base': 'sub-anon/0074/montage0005.png', 'mask': 'sub-anon/0074/lesion0005.png' },
+      { 'base': 'sub-anon/0074/montage0006.png', 'mask': 'sub-anon/0074/lesion0006.png' },
+      { 'base': 'sub-anon/0074/montage0007.png', 'mask': 'sub-anon/0074/lesion0007.png' },
+    ]},
+  '75': {
+    'name': '0075',
+    'images': [
+      { 'base': 'sub-anon/0075/montage0000.png', 'mask': 'sub-anon/0075/lesion0000.png' },
+      { 'base': 'sub-anon/0075/montage0001.png', 'mask': 'sub-anon/0075/lesion0001.png' },
+      { 'base': 'sub-anon/0075/montage0002.png', 'mask': 'sub-anon/0075/lesion0002.png' },
+      { 'base': 'sub-anon/0075/montage0003.png', 'mask': 'sub-anon/0075/lesion0003.png' },
+      { 'base': 'sub-anon/0075/montage0004.png', 'mask': 'sub-anon/0075/lesion0004.png' },
+      { 'base': 'sub-anon/0075/montage0005.png', 'mask': 'sub-anon/0075/lesion0005.png' },
+      { 'base': 'sub-anon/0075/montage0006.png', 'mask': 'sub-anon/0075/lesion0006.png' },
+      { 'base': 'sub-anon/0075/montage0007.png', 'mask': 'sub-anon/0075/lesion0007.png' },
+      { 'base': 'sub-anon/0075/montage0008.png', 'mask': 'sub-anon/0075/lesion0008.png' },
+      { 'base': 'sub-anon/0075/montage0009.png', 'mask': 'sub-anon/0075/lesion0009.png' },
+      { 'base': 'sub-anon/0075/montage0010.png', 'mask': 'sub-anon/0075/lesion0010.png' },
+      { 'base': 'sub-anon/0075/montage0011.png', 'mask': 'sub-anon/0075/lesion0011.png' },
+      { 'base': 'sub-anon/0075/montage0012.png', 'mask': 'sub-anon/0075/lesion0012.png' },
+      { 'base': 'sub-anon/0075/montage0013.png', 'mask': 'sub-anon/0075/lesion0013.png' },
+      { 'base': 'sub-anon/0075/montage0014.png', 'mask': 'sub-anon/0075/lesion0014.png' },
+    ]},
+  '76': {
+    'name': '0076',
+    'images': [
+      { 'base': 'sub-anon/0076/montage0000.png', 'mask': 'sub-anon/0076/lesion0000.png' },
+      { 'base': 'sub-anon/0076/montage0001.png', 'mask': 'sub-anon/0076/lesion0001.png' },
+      { 'base': 'sub-anon/0076/montage0002.png', 'mask': 'sub-anon/0076/lesion0002.png' },
+      { 'base': 'sub-anon/0076/montage0003.png', 'mask': 'sub-anon/0076/lesion0003.png' },
+      { 'base': 'sub-anon/0076/montage0004.png', 'mask': 'sub-anon/0076/lesion0004.png' },
+      { 'base': 'sub-anon/0076/montage0005.png', 'mask': 'sub-anon/0076/lesion0005.png' },
+      { 'base': 'sub-anon/0076/montage0006.png', 'mask': 'sub-anon/0076/lesion0006.png' },
+      { 'base': 'sub-anon/0076/montage0007.png', 'mask': 'sub-anon/0076/lesion0007.png' },
+      { 'base': 'sub-anon/0076/montage0008.png', 'mask': 'sub-anon/0076/lesion0008.png' },
+      { 'base': 'sub-anon/0076/montage0009.png', 'mask': 'sub-anon/0076/lesion0009.png' },
+      { 'base': 'sub-anon/0076/montage0010.png', 'mask': 'sub-anon/0076/lesion0010.png' },
+      { 'base': 'sub-anon/0076/montage0011.png', 'mask': 'sub-anon/0076/lesion0011.png' },
+      { 'base': 'sub-anon/0076/montage0012.png', 'mask': 'sub-anon/0076/lesion0012.png' },
+      { 'base': 'sub-anon/0076/montage0013.png', 'mask': 'sub-anon/0076/lesion0013.png' },
+    ]},
+  '77': {
+    'name': '0077',
+    'images': [
+      { 'base': 'sub-anon/0077/montage0000.png', 'mask': 'sub-anon/0077/lesion0000.png' },
+      { 'base': 'sub-anon/0077/montage0001.png', 'mask': 'sub-anon/0077/lesion0001.png' },
+      { 'base': 'sub-anon/0077/montage0002.png', 'mask': 'sub-anon/0077/lesion0002.png' },
+      { 'base': 'sub-anon/0077/montage0003.png', 'mask': 'sub-anon/0077/lesion0003.png' },
+      { 'base': 'sub-anon/0077/montage0004.png', 'mask': 'sub-anon/0077/lesion0004.png' },
+      { 'base': 'sub-anon/0077/montage0005.png', 'mask': 'sub-anon/0077/lesion0005.png' },
+      { 'base': 'sub-anon/0077/montage0006.png', 'mask': 'sub-anon/0077/lesion0006.png' },
+      { 'base': 'sub-anon/0077/montage0007.png', 'mask': 'sub-anon/0077/lesion0007.png' },
+      { 'base': 'sub-anon/0077/montage0008.png', 'mask': 'sub-anon/0077/lesion0008.png' },
+    ]},
+  '78': {
+    'name': '0078',
+    'images': [
+      { 'base': 'sub-anon/0078/montage0000.png', 'mask': 'sub-anon/0078/lesion0000.png' },
+      { 'base': 'sub-anon/0078/montage0001.png', 'mask': 'sub-anon/0078/lesion0001.png' },
+      { 'base': 'sub-anon/0078/montage0002.png', 'mask': 'sub-anon/0078/lesion0002.png' },
+      { 'base': 'sub-anon/0078/montage0003.png', 'mask': 'sub-anon/0078/lesion0003.png' },
+      { 'base': 'sub-anon/0078/montage0004.png', 'mask': 'sub-anon/0078/lesion0004.png' },
+      { 'base': 'sub-anon/0078/montage0005.png', 'mask': 'sub-anon/0078/lesion0005.png' },
+      { 'base': 'sub-anon/0078/montage0006.png', 'mask': 'sub-anon/0078/lesion0006.png' },
+      { 'base': 'sub-anon/0078/montage0007.png', 'mask': 'sub-anon/0078/lesion0007.png' },
+      { 'base': 'sub-anon/0078/montage0008.png', 'mask': 'sub-anon/0078/lesion0008.png' },
+      { 'base': 'sub-anon/0078/montage0009.png', 'mask': 'sub-anon/0078/lesion0009.png' },
+      { 'base': 'sub-anon/0078/montage0010.png', 'mask': 'sub-anon/0078/lesion0010.png' },
+    ]},
+  '79': {
+    'name': '0079',
+    'images': [
+      { 'base': 'sub-anon/0079/montage0000.png', 'mask': 'sub-anon/0079/lesion0000.png' },
+      { 'base': 'sub-anon/0079/montage0001.png', 'mask': 'sub-anon/0079/lesion0001.png' },
+      { 'base': 'sub-anon/0079/montage0002.png', 'mask': 'sub-anon/0079/lesion0002.png' },
+      { 'base': 'sub-anon/0079/montage0003.png', 'mask': 'sub-anon/0079/lesion0003.png' },
+      { 'base': 'sub-anon/0079/montage0004.png', 'mask': 'sub-anon/0079/lesion0004.png' },
+      { 'base': 'sub-anon/0079/montage0005.png', 'mask': 'sub-anon/0079/lesion0005.png' },
+      { 'base': 'sub-anon/0079/montage0006.png', 'mask': 'sub-anon/0079/lesion0006.png' },
+      { 'base': 'sub-anon/0079/montage0007.png', 'mask': 'sub-anon/0079/lesion0007.png' },
+      { 'base': 'sub-anon/0079/montage0008.png', 'mask': 'sub-anon/0079/lesion0008.png' },
+      { 'base': 'sub-anon/0079/montage0009.png', 'mask': 'sub-anon/0079/lesion0009.png' },
+      { 'base': 'sub-anon/0079/montage0010.png', 'mask': 'sub-anon/0079/lesion0010.png' },
+      { 'base': 'sub-anon/0079/montage0011.png', 'mask': 'sub-anon/0079/lesion0011.png' },
+      { 'base': 'sub-anon/0079/montage0012.png', 'mask': 'sub-anon/0079/lesion0012.png' },
+      { 'base': 'sub-anon/0079/montage0013.png', 'mask': 'sub-anon/0079/lesion0013.png' },
+      { 'base': 'sub-anon/0079/montage0014.png', 'mask': 'sub-anon/0079/lesion0014.png' },
+      { 'base': 'sub-anon/0079/montage0015.png', 'mask': 'sub-anon/0079/lesion0015.png' },
+      { 'base': 'sub-anon/0079/montage0016.png', 'mask': 'sub-anon/0079/lesion0016.png' },
+      { 'base': 'sub-anon/0079/montage0017.png', 'mask': 'sub-anon/0079/lesion0017.png' },
+      { 'base': 'sub-anon/0079/montage0018.png', 'mask': 'sub-anon/0079/lesion0018.png' },
+      { 'base': 'sub-anon/0079/montage0019.png', 'mask': 'sub-anon/0079/lesion0019.png' },
+      { 'base': 'sub-anon/0079/montage0020.png', 'mask': 'sub-anon/0079/lesion0020.png' },
+      { 'base': 'sub-anon/0079/montage0021.png', 'mask': 'sub-anon/0079/lesion0021.png' },
+      { 'base': 'sub-anon/0079/montage0022.png', 'mask': 'sub-anon/0079/lesion0022.png' },
+      { 'base': 'sub-anon/0079/montage0023.png', 'mask': 'sub-anon/0079/lesion0023.png' },
+      { 'base': 'sub-anon/0079/montage0024.png', 'mask': 'sub-anon/0079/lesion0024.png' },
+      { 'base': 'sub-anon/0079/montage0025.png', 'mask': 'sub-anon/0079/lesion0025.png' },
+      { 'base': 'sub-anon/0079/montage0026.png', 'mask': 'sub-anon/0079/lesion0026.png' },
+    ]},
+  '80': {
+    'name': '0080',
+    'images': [
+      { 'base': 'sub-anon/0080/montage0000.png', 'mask': 'sub-anon/0080/lesion0000.png' },
+      { 'base': 'sub-anon/0080/montage0001.png', 'mask': 'sub-anon/0080/lesion0001.png' },
+      { 'base': 'sub-anon/0080/montage0002.png', 'mask': 'sub-anon/0080/lesion0002.png' },
+      { 'base': 'sub-anon/0080/montage0003.png', 'mask': 'sub-anon/0080/lesion0003.png' },
+      { 'base': 'sub-anon/0080/montage0004.png', 'mask': 'sub-anon/0080/lesion0004.png' },
+      { 'base': 'sub-anon/0080/montage0005.png', 'mask': 'sub-anon/0080/lesion0005.png' },
+      { 'base': 'sub-anon/0080/montage0006.png', 'mask': 'sub-anon/0080/lesion0006.png' },
+      { 'base': 'sub-anon/0080/montage0007.png', 'mask': 'sub-anon/0080/lesion0007.png' },
+      { 'base': 'sub-anon/0080/montage0008.png', 'mask': 'sub-anon/0080/lesion0008.png' },
+      { 'base': 'sub-anon/0080/montage0009.png', 'mask': 'sub-anon/0080/lesion0009.png' },
+      { 'base': 'sub-anon/0080/montage0010.png', 'mask': 'sub-anon/0080/lesion0010.png' },
+      { 'base': 'sub-anon/0080/montage0011.png', 'mask': 'sub-anon/0080/lesion0011.png' },
+      { 'base': 'sub-anon/0080/montage0012.png', 'mask': 'sub-anon/0080/lesion0012.png' },
+      { 'base': 'sub-anon/0080/montage0013.png', 'mask': 'sub-anon/0080/lesion0013.png' },
+      { 'base': 'sub-anon/0080/montage0014.png', 'mask': 'sub-anon/0080/lesion0014.png' },
+    ]},
+  '81': {
+    'name': '0081',
+    'images': [
+      { 'base': 'sub-anon/0081/montage0000.png', 'mask': 'sub-anon/0081/lesion0000.png' },
+      { 'base': 'sub-anon/0081/montage0001.png', 'mask': 'sub-anon/0081/lesion0001.png' },
+      { 'base': 'sub-anon/0081/montage0002.png', 'mask': 'sub-anon/0081/lesion0002.png' },
+      { 'base': 'sub-anon/0081/montage0003.png', 'mask': 'sub-anon/0081/lesion0003.png' },
+      { 'base': 'sub-anon/0081/montage0004.png', 'mask': 'sub-anon/0081/lesion0004.png' },
+      { 'base': 'sub-anon/0081/montage0005.png', 'mask': 'sub-anon/0081/lesion0005.png' },
+      { 'base': 'sub-anon/0081/montage0006.png', 'mask': 'sub-anon/0081/lesion0006.png' },
+      { 'base': 'sub-anon/0081/montage0007.png', 'mask': 'sub-anon/0081/lesion0007.png' },
+      { 'base': 'sub-anon/0081/montage0008.png', 'mask': 'sub-anon/0081/lesion0008.png' },
+      { 'base': 'sub-anon/0081/montage0009.png', 'mask': 'sub-anon/0081/lesion0009.png' },
+      { 'base': 'sub-anon/0081/montage0010.png', 'mask': 'sub-anon/0081/lesion0010.png' },
+      { 'base': 'sub-anon/0081/montage0011.png', 'mask': 'sub-anon/0081/lesion0011.png' },
+      { 'base': 'sub-anon/0081/montage0012.png', 'mask': 'sub-anon/0081/lesion0012.png' },
+      { 'base': 'sub-anon/0081/montage0013.png', 'mask': 'sub-anon/0081/lesion0013.png' },
+      { 'base': 'sub-anon/0081/montage0014.png', 'mask': 'sub-anon/0081/lesion0014.png' },
+      { 'base': 'sub-anon/0081/montage0015.png', 'mask': 'sub-anon/0081/lesion0015.png' },
+      { 'base': 'sub-anon/0081/montage0016.png', 'mask': 'sub-anon/0081/lesion0016.png' },
+      { 'base': 'sub-anon/0081/montage0017.png', 'mask': 'sub-anon/0081/lesion0017.png' },
+    ]},
+  '82': {
+    'name': '0082',
+    'images': [
+      { 'base': 'sub-anon/0082/montage0000.png', 'mask': 'sub-anon/0082/lesion0000.png' },
+      { 'base': 'sub-anon/0082/montage0001.png', 'mask': 'sub-anon/0082/lesion0001.png' },
+      { 'base': 'sub-anon/0082/montage0002.png', 'mask': 'sub-anon/0082/lesion0002.png' },
+      { 'base': 'sub-anon/0082/montage0003.png', 'mask': 'sub-anon/0082/lesion0003.png' },
+      { 'base': 'sub-anon/0082/montage0004.png', 'mask': 'sub-anon/0082/lesion0004.png' },
+      { 'base': 'sub-anon/0082/montage0005.png', 'mask': 'sub-anon/0082/lesion0005.png' },
+      { 'base': 'sub-anon/0082/montage0006.png', 'mask': 'sub-anon/0082/lesion0006.png' },
+      { 'base': 'sub-anon/0082/montage0007.png', 'mask': 'sub-anon/0082/lesion0007.png' },
+      { 'base': 'sub-anon/0082/montage0008.png', 'mask': 'sub-anon/0082/lesion0008.png' },
+      { 'base': 'sub-anon/0082/montage0009.png', 'mask': 'sub-anon/0082/lesion0009.png' },
+      { 'base': 'sub-anon/0082/montage0010.png', 'mask': 'sub-anon/0082/lesion0010.png' },
+      { 'base': 'sub-anon/0082/montage0011.png', 'mask': 'sub-anon/0082/lesion0011.png' },
+      { 'base': 'sub-anon/0082/montage0012.png', 'mask': 'sub-anon/0082/lesion0012.png' },
+      { 'base': 'sub-anon/0082/montage0013.png', 'mask': 'sub-anon/0082/lesion0013.png' },
+    ]},
+  '83': {
+    'name': '0083',
+    'images': [
+      { 'base': 'sub-anon/0083/montage0000.png', 'mask': 'sub-anon/0083/lesion0000.png' },
+      { 'base': 'sub-anon/0083/montage0001.png', 'mask': 'sub-anon/0083/lesion0001.png' },
+      { 'base': 'sub-anon/0083/montage0002.png', 'mask': 'sub-anon/0083/lesion0002.png' },
+      { 'base': 'sub-anon/0083/montage0003.png', 'mask': 'sub-anon/0083/lesion0003.png' },
+      { 'base': 'sub-anon/0083/montage0004.png', 'mask': 'sub-anon/0083/lesion0004.png' },
+      { 'base': 'sub-anon/0083/montage0005.png', 'mask': 'sub-anon/0083/lesion0005.png' },
+      { 'base': 'sub-anon/0083/montage0006.png', 'mask': 'sub-anon/0083/lesion0006.png' },
+      { 'base': 'sub-anon/0083/montage0007.png', 'mask': 'sub-anon/0083/lesion0007.png' },
+      { 'base': 'sub-anon/0083/montage0008.png', 'mask': 'sub-anon/0083/lesion0008.png' },
+    ]},
+  '84': {
+    'name': '0084',
+    'images': [
+      { 'base': 'sub-anon/0084/montage0000.png', 'mask': 'sub-anon/0084/lesion0000.png' },
+      { 'base': 'sub-anon/0084/montage0001.png', 'mask': 'sub-anon/0084/lesion0001.png' },
+      { 'base': 'sub-anon/0084/montage0002.png', 'mask': 'sub-anon/0084/lesion0002.png' },
+      { 'base': 'sub-anon/0084/montage0003.png', 'mask': 'sub-anon/0084/lesion0003.png' },
+      { 'base': 'sub-anon/0084/montage0004.png', 'mask': 'sub-anon/0084/lesion0004.png' },
+      { 'base': 'sub-anon/0084/montage0005.png', 'mask': 'sub-anon/0084/lesion0005.png' },
+      { 'base': 'sub-anon/0084/montage0006.png', 'mask': 'sub-anon/0084/lesion0006.png' },
+      { 'base': 'sub-anon/0084/montage0007.png', 'mask': 'sub-anon/0084/lesion0007.png' },
+      { 'base': 'sub-anon/0084/montage0008.png', 'mask': 'sub-anon/0084/lesion0008.png' },
+      { 'base': 'sub-anon/0084/montage0009.png', 'mask': 'sub-anon/0084/lesion0009.png' },
+      { 'base': 'sub-anon/0084/montage0010.png', 'mask': 'sub-anon/0084/lesion0010.png' },
+      { 'base': 'sub-anon/0084/montage0011.png', 'mask': 'sub-anon/0084/lesion0011.png' },
+      { 'base': 'sub-anon/0084/montage0012.png', 'mask': 'sub-anon/0084/lesion0012.png' },
+      { 'base': 'sub-anon/0084/montage0013.png', 'mask': 'sub-anon/0084/lesion0013.png' },
+      { 'base': 'sub-anon/0084/montage0014.png', 'mask': 'sub-anon/0084/lesion0014.png' },
+      { 'base': 'sub-anon/0084/montage0015.png', 'mask': 'sub-anon/0084/lesion0015.png' },
+      { 'base': 'sub-anon/0084/montage0016.png', 'mask': 'sub-anon/0084/lesion0016.png' },
+      { 'base': 'sub-anon/0084/montage0017.png', 'mask': 'sub-anon/0084/lesion0017.png' },
+      { 'base': 'sub-anon/0084/montage0018.png', 'mask': 'sub-anon/0084/lesion0018.png' },
+    ]},
+  '85': {
+    'name': '0085',
+    'images': [
+      { 'base': 'sub-anon/0085/montage0000.png', 'mask': 'sub-anon/0085/lesion0000.png' },
+      { 'base': 'sub-anon/0085/montage0001.png', 'mask': 'sub-anon/0085/lesion0001.png' },
+      { 'base': 'sub-anon/0085/montage0002.png', 'mask': 'sub-anon/0085/lesion0002.png' },
+      { 'base': 'sub-anon/0085/montage0003.png', 'mask': 'sub-anon/0085/lesion0003.png' },
+      { 'base': 'sub-anon/0085/montage0004.png', 'mask': 'sub-anon/0085/lesion0004.png' },
+      { 'base': 'sub-anon/0085/montage0005.png', 'mask': 'sub-anon/0085/lesion0005.png' },
+      { 'base': 'sub-anon/0085/montage0006.png', 'mask': 'sub-anon/0085/lesion0006.png' },
+      { 'base': 'sub-anon/0085/montage0007.png', 'mask': 'sub-anon/0085/lesion0007.png' },
+      { 'base': 'sub-anon/0085/montage0008.png', 'mask': 'sub-anon/0085/lesion0008.png' },
+      { 'base': 'sub-anon/0085/montage0009.png', 'mask': 'sub-anon/0085/lesion0009.png' },
+      { 'base': 'sub-anon/0085/montage0010.png', 'mask': 'sub-anon/0085/lesion0010.png' },
+      { 'base': 'sub-anon/0085/montage0011.png', 'mask': 'sub-anon/0085/lesion0011.png' },
+    ]},
+  '86': {
+    'name': '0086',
+    'images': [
+      { 'base': 'sub-anon/0086/montage0000.png', 'mask': 'sub-anon/0086/lesion0000.png' },
+      { 'base': 'sub-anon/0086/montage0001.png', 'mask': 'sub-anon/0086/lesion0001.png' },
+      { 'base': 'sub-anon/0086/montage0002.png', 'mask': 'sub-anon/0086/lesion0002.png' },
+      { 'base': 'sub-anon/0086/montage0003.png', 'mask': 'sub-anon/0086/lesion0003.png' },
+      { 'base': 'sub-anon/0086/montage0004.png', 'mask': 'sub-anon/0086/lesion0004.png' },
+      { 'base': 'sub-anon/0086/montage0005.png', 'mask': 'sub-anon/0086/lesion0005.png' },
+      { 'base': 'sub-anon/0086/montage0006.png', 'mask': 'sub-anon/0086/lesion0006.png' },
+      { 'base': 'sub-anon/0086/montage0007.png', 'mask': 'sub-anon/0086/lesion0007.png' },
+      { 'base': 'sub-anon/0086/montage0008.png', 'mask': 'sub-anon/0086/lesion0008.png' },
+      { 'base': 'sub-anon/0086/montage0009.png', 'mask': 'sub-anon/0086/lesion0009.png' },
+    ]},
+  '87': {
+    'name': '0087',
+    'images': [
+      { 'base': 'sub-anon/0087/montage0000.png', 'mask': 'sub-anon/0087/lesion0000.png' },
+      { 'base': 'sub-anon/0087/montage0001.png', 'mask': 'sub-anon/0087/lesion0001.png' },
+      { 'base': 'sub-anon/0087/montage0002.png', 'mask': 'sub-anon/0087/lesion0002.png' },
+      { 'base': 'sub-anon/0087/montage0003.png', 'mask': 'sub-anon/0087/lesion0003.png' },
+      { 'base': 'sub-anon/0087/montage0004.png', 'mask': 'sub-anon/0087/lesion0004.png' },
+      { 'base': 'sub-anon/0087/montage0005.png', 'mask': 'sub-anon/0087/lesion0005.png' },
+      { 'base': 'sub-anon/0087/montage0006.png', 'mask': 'sub-anon/0087/lesion0006.png' },
+      { 'base': 'sub-anon/0087/montage0007.png', 'mask': 'sub-anon/0087/lesion0007.png' },
+    ]},
+  '88': {
+    'name': '0088',
+    'images': [
+      { 'base': 'sub-anon/0088/montage0000.png', 'mask': 'sub-anon/0088/lesion0000.png' },
+      { 'base': 'sub-anon/0088/montage0001.png', 'mask': 'sub-anon/0088/lesion0001.png' },
+      { 'base': 'sub-anon/0088/montage0002.png', 'mask': 'sub-anon/0088/lesion0002.png' },
+      { 'base': 'sub-anon/0088/montage0003.png', 'mask': 'sub-anon/0088/lesion0003.png' },
+      { 'base': 'sub-anon/0088/montage0004.png', 'mask': 'sub-anon/0088/lesion0004.png' },
+      { 'base': 'sub-anon/0088/montage0005.png', 'mask': 'sub-anon/0088/lesion0005.png' },
+      { 'base': 'sub-anon/0088/montage0006.png', 'mask': 'sub-anon/0088/lesion0006.png' },
+      { 'base': 'sub-anon/0088/montage0007.png', 'mask': 'sub-anon/0088/lesion0007.png' },
+      { 'base': 'sub-anon/0088/montage0008.png', 'mask': 'sub-anon/0088/lesion0008.png' },
+      { 'base': 'sub-anon/0088/montage0009.png', 'mask': 'sub-anon/0088/lesion0009.png' },
+      { 'base': 'sub-anon/0088/montage0010.png', 'mask': 'sub-anon/0088/lesion0010.png' },
+      { 'base': 'sub-anon/0088/montage0011.png', 'mask': 'sub-anon/0088/lesion0011.png' },
+      { 'base': 'sub-anon/0088/montage0012.png', 'mask': 'sub-anon/0088/lesion0012.png' },
+      { 'base': 'sub-anon/0088/montage0013.png', 'mask': 'sub-anon/0088/lesion0013.png' },
+      { 'base': 'sub-anon/0088/montage0014.png', 'mask': 'sub-anon/0088/lesion0014.png' },
+    ]},
+  '89': {
+    'name': '0089',
+    'images': [
+      { 'base': 'sub-anon/0089/montage0000.png', 'mask': 'sub-anon/0089/lesion0000.png' },
+      { 'base': 'sub-anon/0089/montage0001.png', 'mask': 'sub-anon/0089/lesion0001.png' },
+      { 'base': 'sub-anon/0089/montage0002.png', 'mask': 'sub-anon/0089/lesion0002.png' },
+      { 'base': 'sub-anon/0089/montage0003.png', 'mask': 'sub-anon/0089/lesion0003.png' },
+      { 'base': 'sub-anon/0089/montage0004.png', 'mask': 'sub-anon/0089/lesion0004.png' },
+      { 'base': 'sub-anon/0089/montage0005.png', 'mask': 'sub-anon/0089/lesion0005.png' },
+      { 'base': 'sub-anon/0089/montage0006.png', 'mask': 'sub-anon/0089/lesion0006.png' },
+      { 'base': 'sub-anon/0089/montage0007.png', 'mask': 'sub-anon/0089/lesion0007.png' },
+      { 'base': 'sub-anon/0089/montage0008.png', 'mask': 'sub-anon/0089/lesion0008.png' },
+      { 'base': 'sub-anon/0089/montage0009.png', 'mask': 'sub-anon/0089/lesion0009.png' },
+      { 'base': 'sub-anon/0089/montage0010.png', 'mask': 'sub-anon/0089/lesion0010.png' },
+      { 'base': 'sub-anon/0089/montage0011.png', 'mask': 'sub-anon/0089/lesion0011.png' },
+    ]},
+  '90': {
+    'name': '0090',
+    'images': [
+      { 'base': 'sub-anon/0090/montage0000.png', 'mask': 'sub-anon/0090/lesion0000.png' },
+      { 'base': 'sub-anon/0090/montage0001.png', 'mask': 'sub-anon/0090/lesion0001.png' },
+      { 'base': 'sub-anon/0090/montage0002.png', 'mask': 'sub-anon/0090/lesion0002.png' },
+      { 'base': 'sub-anon/0090/montage0003.png', 'mask': 'sub-anon/0090/lesion0003.png' },
+      { 'base': 'sub-anon/0090/montage0004.png', 'mask': 'sub-anon/0090/lesion0004.png' },
+      { 'base': 'sub-anon/0090/montage0005.png', 'mask': 'sub-anon/0090/lesion0005.png' },
+      { 'base': 'sub-anon/0090/montage0006.png', 'mask': 'sub-anon/0090/lesion0006.png' },
+      { 'base': 'sub-anon/0090/montage0007.png', 'mask': 'sub-anon/0090/lesion0007.png' },
+    ]},
+  '91': {
+    'name': '0091',
+    'images': [
+      { 'base': 'sub-anon/0091/montage0000.png', 'mask': 'sub-anon/0091/lesion0000.png' },
+      { 'base': 'sub-anon/0091/montage0001.png', 'mask': 'sub-anon/0091/lesion0001.png' },
+      { 'base': 'sub-anon/0091/montage0002.png', 'mask': 'sub-anon/0091/lesion0002.png' },
+      { 'base': 'sub-anon/0091/montage0003.png', 'mask': 'sub-anon/0091/lesion0003.png' },
+      { 'base': 'sub-anon/0091/montage0004.png', 'mask': 'sub-anon/0091/lesion0004.png' },
+      { 'base': 'sub-anon/0091/montage0005.png', 'mask': 'sub-anon/0091/lesion0005.png' },
+      { 'base': 'sub-anon/0091/montage0006.png', 'mask': 'sub-anon/0091/lesion0006.png' },
+      { 'base': 'sub-anon/0091/montage0007.png', 'mask': 'sub-anon/0091/lesion0007.png' },
+      { 'base': 'sub-anon/0091/montage0008.png', 'mask': 'sub-anon/0091/lesion0008.png' },
+      { 'base': 'sub-anon/0091/montage0009.png', 'mask': 'sub-anon/0091/lesion0009.png' },
+      { 'base': 'sub-anon/0091/montage0010.png', 'mask': 'sub-anon/0091/lesion0010.png' },
+    ]},
+};
+let currentCaseId = null;
+let currentSliceIdx = 0;
+let results = {};
+let isScrolling = false;
+
+function loadPRL(id) {
+    currentCaseId = id;
+    currentSliceIdx = 0;
+    
+    document.querySelectorAll('.prl-item').forEach(el => el.classList.remove('active'));
+    document.getElementById(`item-${id}`).classList.add('active');
+    
+    const resp = document.getElementById('feedbackResponse');
+    resp.style.display = 'none';
+
+    document.querySelectorAll('.rf').forEach(cb => {
+        cb.checked = (results[id]?.flags || []).includes(cb.value);
+    });
+    
+    updateDisplay();
+}
+
+function updateDisplay() {
+    if (!currentCaseId) return;
+    const caseObj = prlData[currentCaseId];
+    const data = caseObj.images[currentSliceIdx];
+    
+    document.getElementById('montageImage').src = data.base;
+    document.documentElement.style.setProperty('--overlay-url', `url('${data.mask}')`);
+    document.getElementById('sliceCounter').innerText = `Slice: ${currentSliceIdx + 1} / ${caseObj.images.length}`;
+}
+
+function submitVerdict(val) {
+    if (!currentCaseId) return;
+    
+    const flags = Array.from(document.querySelectorAll('.rf:checked')).map(cb => cb.value);
+    results[currentCaseId] = { decision: val, flags: flags };
+    
+    // Update Sidebar
+    const sideStatus = document.getElementById(`side-status-${currentCaseId}`);
+    sideStatus.innerText = `Verdict: ${val}`;
+    sideStatus.style.color = (val === 'Yes') ? '#40c057' : '#fa5252';
+    document.getElementById(`item-${currentCaseId}`).classList.add('has-feedback');
+
+    const resp = document.getElementById('feedbackResponse');
+    resp.style.display = 'block';
+
+    // --- INSERT MULTI-RATER EXPERT FEEDBACK HERE ---
+    if (currentCaseId === '1') {
+        if (val === 'Yes') {
+            resp.innerHTML = "<b>Agree.</b> This lesion was classified as a PRL by experts with the yellow flag of 'Faint' due to the subtlety of the rim. Note the faint hypointense rim on slices 8-11.";
+            resp.style.backgroundColor = "#ebfbee"; 
+            resp.style.color = "#2b8a3e";
+        } else {
+            resp.innerHTML = "<b>Maybe not.</b> This lesion was classified as a PRL by experts with the yellow flag of 'Faint' due to the subtlety of the rim. Note the faint hypointense rim on slices 8-11.";
+            resp.style.backgroundColor = "#fff5f5";
+            resp.style.color = "#c92a2a";
+        }
+    }
+    
+    // Generic response for all other cases
+    else {
+        if (val === 'Yes') {
+            resp.innerText = "Response saved: PRL confirmed. Expert/consensus feedback not yet available for this case.";
+            resp.style.backgroundColor = "#ebfbee";
+            resp.style.color = "#2b8a3e";
+        } else {
+            resp.innerText = "Response saved: Not a PRL. Expert/consensus feedback not yet available for this case.";
+            resp.style.backgroundColor = "#fff5f5";
+            resp.style.color = "#c92a2a";
+        }
+    }
+}
+
+function moveSlice(dir) {
+    if (!currentCaseId) return;
+    const max = prlData[currentCaseId].images.length - 1;
+    let newIdx = currentSliceIdx + dir;
+    
+    if (newIdx < 0) newIdx = 0;
+    if (newIdx > max) newIdx = max;
+    
+    if (newIdx !== currentSliceIdx) {
+        currentSliceIdx = newIdx;
+        updateDisplay();
+    }
+}
+
+window.addEventListener('wheel', (e) => {
+    if (!currentCaseId || isScrolling) return;
+    isScrolling = true;
+    moveSlice(e.deltaY > 0 ? 1 : -1);
+    setTimeout(() => { isScrolling = false; }, 60); 
+}, { passive: true });
+
+window.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') document.getElementById('overlayImage').classList.toggle('visible');
+    if (e.key === '1') submitVerdict('Yes');
+    if (e.key === '2') submitVerdict('No');
+    if (e.key === 'ArrowRight' || e.key === 'ArrowDown') moveSlice(1);
+    if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') moveSlice(-1);
+});
+
+function exportCSV() {
+    let csv = "PRL_ID,FOLDER,VERDICT,FLAGS\n";
+    Object.keys(results).forEach(id => {
+        const r = results[id];
+        csv += `${id},${prlData[id].name},${r.decision},"${r.flags.join(',')}"\n`;
+    });
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'prl_results.csv';
+    a.click();
+}
+
+function toggleInfo(event, id) {
+    // Prevent the click from checking the checkbox
+    event.preventDefault();
+    event.stopPropagation();
+
+    const desc = document.getElementById(id);
+    const isVisible = desc.style.display === 'block';
+    
+    // Hide all descriptions first (optional, if you want only one open at a time)
+    document.querySelectorAll('.flag-desc').forEach(d => d.style.display = 'none');
+
+    // Toggle the clicked one
+    desc.style.display = isVisible ? 'none' : 'block';
+}
+
+window.onload = () => { if (prlData['1']) loadPRL('1'); };
+</script>
+</body>
+</html>
